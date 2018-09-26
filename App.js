@@ -1,23 +1,19 @@
 /* jshint esversion: 6 */
 
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { createDrawerNavigator } from "react-navigation";
+import HomeScreen from "./screens/HomeScreen";
+import CameraScreen from "./screens/CameraScreen";
+
+Drawer = createDrawerNavigator({
+  Home: { screen: HomeScreen },
+  Camera: { screen: CameraScreen }
+});
 
 export default class App extends React.Component {
-  render = () => {
-    return (
-      <View style={styles.container}>
-        <Text>Open up App.js to start working on your app!</Text>
-      </View>
-    );
-  }
-}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  }
-});
+  render = () => {
+    return <Drawer />
+  };
+
+}
