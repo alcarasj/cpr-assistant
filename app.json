@@ -21,7 +21,11 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cprassistant.app"
+    },
+    "android": {
+      "package": "com.cprassistant.app"
     }
   }
 }
