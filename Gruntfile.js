@@ -1,10 +1,12 @@
-/* jshint esversion: 6 */
-
 module.exports = (grunt) => {
-    grunt.loadNpmTasks("grunt-contrib-jshint");
+    require("load-grunt-tasks")(grunt);
     grunt.initConfig({
-        jshint: {
-            all: ["*.js", "./screens/*.js"]
+        eslint: {
+            options: {
+                reset: true
+            },
+            target: ["./*.js", "./screens/*.js"]
         }
     });
+    grunt.registerTask("default", ["eslint"]);
 };

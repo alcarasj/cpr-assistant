@@ -5,7 +5,7 @@ import { createDrawerNavigator } from "react-navigation";
 import HomeScreen from "./screens/HomeScreen";
 import CameraScreen from "./screens/CameraScreen";
 
-Drawer = createDrawerNavigator({
+const Drawer = createDrawerNavigator({
   Home: { screen: HomeScreen },
   Camera: { screen: CameraScreen }
 });
@@ -13,7 +13,7 @@ Drawer = createDrawerNavigator({
 export default class App extends React.Component {
 
   render = () => {
-    return <Drawer />
+    return <Drawer />;
   };
 
 }
