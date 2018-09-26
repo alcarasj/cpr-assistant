@@ -1,6 +1,7 @@
 /* jshint esversion: 6 */
 
 import React from "react";
+import { Styles } from "../configs/Styles";
 import { 
   StyleSheet,
   Text,
@@ -16,8 +17,8 @@ export default class HomeScreen extends React.Component {
 
 	render = () => {
 		return (
-			<View style={styles.container}>
-				<Text>Welcome to the home screen.</Text>
+			<View style={Styles.container}>
+				<Text>Welcome home!</Text>
 				<Button
 				title="Go to camera screen"
 				onPress={ () => this.props.navigation.navigate("Camera") }
@@ -32,12 +33,6 @@ export default class HomeScreen extends React.Component {
 
 }
 
-const white = "white";
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: white,
-    alignItems: "center",
-    justifyContent: "center",
-  }
+  
 });

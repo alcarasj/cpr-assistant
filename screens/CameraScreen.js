@@ -1,7 +1,8 @@
 /* jshint esversion: 6 */
 
 import React from "react";
-import { 
+import { Styles } from "../configs/Styles";
+import {
   StyleSheet,
   Text,
   View,
@@ -16,8 +17,8 @@ export default class CameraScreen extends React.Component {
 
 	render = () => {
 		return (
-			<View style={styles.container}>
-				<Text>Welcome to the camera screen.</Text>
+			<View style={Styles.container}>
+				<Text>Welcome to the camera screen. OpenCV and camera coming soon!</Text>
 				<Button
 				title="Go to home screen"
 				onPress={ () => this.props.navigation.navigate("Home") }
@@ -32,12 +33,6 @@ export default class CameraScreen extends React.Component {
 
 }
 
-const white = "white";
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: white,
-    alignItems: "center",
-    justifyContent: "center",
-  }
+  
 });
