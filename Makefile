@@ -1,5 +1,8 @@
-build:
-	expo build
+build-android:
+	expo build:android
+
+build-ios:
+	expo build:ios
 
 clean:
 	rm -rf node_modules
