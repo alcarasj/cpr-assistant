@@ -1,7 +1,9 @@
 build-android:
+	make lint
 	expo build:android
 
 build-ios:
+	make lint
 	expo build:ios
 
 clean:
@@ -13,3 +15,6 @@ install:
 
 dev:
 	npm start 
+
+lint:
+	grunt eslint
