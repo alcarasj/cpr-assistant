@@ -7,8 +7,6 @@ import os
 import matplotlib 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-from scipy.signal import argrelextrema
-from scipy.signal import find_peaks
 
 
 parser = ArgumentParser(description='Raw data retriever for CPR assistant test videos.')
@@ -78,10 +76,12 @@ def get_minima_maxima(data):
 				if current_y_value > prev_y_value and prev_y_value == minimum:
 					prev_value = data[prev_index]
 					data[prev_index] = (prev_value[0], prev_value[1], prev_value[2], "Minimum")
+					print("Ymin = %i" % current_y_value)
 				elif current_y_value < prev_y_value and prev_y_value == maximum:
 					prev_value = data[prev_index]
 					data[prev_index] = (prev_value[0], prev_value[1], prev_value[2], "Maximum")
-
+					print("Ymax = %i" % current_y_value)
+				print("%i" % current_y_value)
 			prev_y_value = current_y_value
 			prev_index = index
 		data[index] = (value[0], value[1], value[2], None)
@@ -110,9 +110,9 @@ def write_to_csv(data):
 
 	for coord in data:
 		if not (coord[0] and coord[1]):
-				writer.writerow(['-', '-', coord[2], '-'])
+				writer.writerow(['-', '-', coord[2], 'None'])
 		else:
-			writer.writerow([coord[0], coord[1], coord[2], coord[3] if coord[3] else '-'])
+			writer.writerow([coord[0], coord[1], coord[2], coord[3] if coord[3] else "None"])
 		row_count += 1
 
 	csv_file.close()
@@ -132,7 +132,7 @@ def read_from_csv(csv_file):
 		if row[0] == '-' and row[1] == '-':
 			circle_coords.append((None, None, row[2], None))
 		else:
- 			circle_coords.append((row[0], row[1], row[2], row[3] if row[3] != '-' else None))
+ 			circle_coords.append((row[0], row[1], row[2], row[3] if row[3] != 'None' else None))
 
 	print("Reading from CSV file complete! %i co-ordinates read." % len(circle_coords))
 	return circle_coords
