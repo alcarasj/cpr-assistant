@@ -7,13 +7,16 @@ import os
 import matplotlib 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+from scipy.signal import argrelextrema
+from scipy.signal import find_peaks
 
 
 parser = ArgumentParser(description='Raw data retriever for CPR assistant test videos.')
 parser.add_argument('-i', '--input', dest='input', help='Relative path to the input video file.', type=str, required=True)
 parser.add_argument('-s', '--start-frame', dest='start_frame', help='The frame number of the start of compressions.', type=int, required=True)
-parser.add_argument('-o', '--overwrite-csv', dest='overwrite_csv', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV).', type=bool, required=False, default=False)
+parser.add_argument('-o', '--overwrite-csv', dest='overwrite_csv', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV if enabled).', type=bool, required=False, default=False)
 parser.add_argument('-v', '--video-output', dest='video_output', help='Show video output.', type=bool, required=False, default=False)
+parser.add_argument('-d', '--debug-mode', dest='debug_mode', help='Debug mode for iterating frame-by-frame.', type=bool, required=False, default=False)
 args = parser.parse_args()
 
 
@@ -23,13 +26,69 @@ TOTAL_FRAMES = VIDEO_CAPTURE.get(cv2.CAP_PROP_FRAME_COUNT)
 OVERWRITE_CSV = args.overwrite_csv
 START_FRAME = args.start_frame
 VIDEO_OUTPUT = args.video_output
+DEBUG_MODE = args.debug_mode
 CSV_RAW_DIR = 'csv_raw/%s.csv'
 
-def show_output(frame):
+
+
+def show_output(frame, frame_number, y_value, avg_value):
+	""" Shows the video output in a window. """
+
+	cv2.putText(frame, "Frame: %i" % frame_number, (150,200), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
+	cv2.putText(frame, "Value: %i" % avg_value, (150, 250), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
+	cv2.putText(frame, "Y: %s" % str(y_value), (150, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
 	cv2.namedWindow('Output', cv2.WINDOW_NORMAL)
 	cv2.resizeWindow('Output', 800, 800)
 	cv2.imshow('Output', frame)
-	cv2.waitKey(1) 
+	if DEBUG_MODE:
+		if cv2.waitKey(0) & 0xFF == ord('n'):
+			pass
+	else:
+		cv2.waitKey(1)
+
+
+
+def get_minima_maxima(data):
+	""" 
+	Reads the raw data and gets the local minimums and maximums.
+	The accuracy of this method must be verified manually.
+
+	"""
+
+	coords = data
+	prev_y_value = data[0][1]
+	prev_index = 0
+	minimum = data[0][1]
+	maximum = data[0][1]
+
+	for index, value in enumerate(coords):
+		current_y_value = value[1]
+		if index > START_FRAME - 1 and current_y_value:
+
+			if not (minimum and maximum):
+				minimum = current_y_value
+				maximum = current_y_value
+
+			if prev_y_value:
+				if current_y_value < prev_y_value:
+					minimum = current_y_value
+				elif current_y_value > prev_y_value:
+					maximum = current_y_value
+
+				if current_y_value > prev_y_value and prev_y_value == minimum:
+					prev_value = data[prev_index]
+					data[prev_index] = (prev_value[0], prev_value[1], prev_value[2], "Minimum")
+				elif current_y_value < prev_y_value and prev_y_value == maximum:
+					prev_value = data[prev_index]
+					data[prev_index] = (prev_value[0], prev_value[1], prev_value[2], "Maximum")
+
+			prev_y_value = current_y_value
+			prev_index = index
+		data[index] = (value[0], value[1], value[2], None)
+
+	return data
+
+
 
 
 def write_to_csv(data):
@@ -51,9 +110,9 @@ def write_to_csv(data):
 
 	for coord in data:
 		if not (coord[0] and coord[1]):
-			writer.writerow(['-', '-', coord[2]])
+				writer.writerow(['-', '-', coord[2], '-'])
 		else:
-			writer.writerow([coord[0], coord[1], coord[2]])
+			writer.writerow([coord[0], coord[1], coord[2], coord[3] if coord[3] else '-'])
 		row_count += 1
 
 	csv_file.close()
@@ -71,9 +130,9 @@ def read_from_csv(csv_file):
 	reader = csv.reader(csv_file, delimiter=',')
 	for row in reader:
 		if row[0] == '-' and row[1] == '-':
-			circle_coords.append((None, None))
+			circle_coords.append((None, None, row[2], None))
 		else:
- 			circle_coords.append((row[0], row[1]))
+ 			circle_coords.append((row[0], row[1], row[2], row[3] if row[3] != '-' else None))
 
 	print("Reading from CSV file complete! %i co-ordinates read." % len(circle_coords))
 	return circle_coords
@@ -85,8 +144,10 @@ def plot_data(data):
 
 	print("Plotting data...")
 	frames = list(range(1, len(data) + 1))
-	y_coords = list(map(lambda coord: coord[1], data))
+	y_coords = [coord[1] for coord in data]
+	max_min = [coord[1] if coord[3] else None for coord in data]
 	plt.plot(frames, y_coords)
+	plt.plot(frames, max_min, "x")
 	plt.ylabel('Y-Coordinates')
 	plt.xlabel('Frame')
 	plt.axis([0, len(data), 0, 2000])
@@ -133,19 +194,17 @@ def get_raw_data():
 				circles = np.uint16(np.around(circles))
 				ball = circles[0][0]
 				coord = (ball[0], ball[1], avg_value)
-				# Output windows. 
-				# cv2.putText(grayscale, str(frame_number), (150, 150), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
-				# cv2.putText(grayscale, str(avg_value), (150, 220), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
 				# draw the outer circle
 				cv2.circle(frame, (ball[0], ball[1]), ball[2], (0,255,0), 2)
 				# draw the center of the circle
 				cv2.circle(frame, (ball[0], ball[1]), 2, (0,0,255), 3)
 			else: 
-				coord = (None, None, avg_value)
+				coord = (None, None, avg_value, None)
 
 			circle_coords.append(coord)
 			if VIDEO_OUTPUT:
-				show_output(frame)
+				show_output(frame, frame_number, coord[1], avg_value)
+			prev_y_value = coord[1]
 		else:
 			complete = True
 
@@ -153,6 +212,7 @@ def get_raw_data():
 	cv2.destroyAllWindows()
 	print("Retrieval of raw data complete! %i co-ordinates detected." % len(circle_coords))
 	return circle_coords
+
 
 
 def main():
@@ -164,12 +224,14 @@ def main():
 		existing_csv = open(CSV_RAW_DIR % INPUT_VIDEO)
 		if OVERWRITE_CSV:
 			raw_data = get_raw_data()
-			write_to_csv(raw_data)
+			data = get_minima_maxima(raw_data)
+			write_to_csv(data)
 		else:
 			raw_data = read_from_csv(existing_csv)
 	except FileNotFoundError:
 		raw_data = get_raw_data()
-		write_to_csv(raw_data)
+		data = get_minima_maxima(raw_data)
+		write_to_csv(data)
 
 	plot_data(raw_data)
 	print("Script execution complete!")
