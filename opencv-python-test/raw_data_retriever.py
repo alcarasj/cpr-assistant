@@ -50,38 +50,35 @@ def get_minima_maxima(data):
 	""" 
 	Reads the raw data and gets the local minimums and maximums.
 	The accuracy of this method must be verified manually.
-
 	"""
 
 	coords = data
-	prev_y_value = data[0][1]
+	prev_y_value = 0
+	last_min_index = 0
+	last_max_index = 0
 	prev_index = 0
-	minimum = data[0][1]
-	maximum = data[0][1]
+	minimum = 0
+	maximum = 0
 
 	for index, value in enumerate(coords):
 		current_y_value = value[1]
 		if index > START_FRAME - 1 and current_y_value:
-
-			if not (minimum and maximum):
+			if current_y_value < prev_y_value:
 				minimum = current_y_value
+				last_min_index = index
+			elif current_y_value > prev_y_value:
 				maximum = current_y_value
+				last_max_index = index
 
-			if prev_y_value:
-				if current_y_value < prev_y_value:
-					minimum = current_y_value
-				elif current_y_value > prev_y_value:
-					maximum = current_y_value
-
-				if current_y_value > prev_y_value and prev_y_value == minimum:
-					prev_value = data[prev_index]
-					data[prev_index] = (prev_value[0], prev_value[1], prev_value[2], "Minimum")
-					print("Ymin = %i" % current_y_value)
-				elif current_y_value < prev_y_value and prev_y_value == maximum:
-					prev_value = data[prev_index]
-					data[prev_index] = (prev_value[0], prev_value[1], prev_value[2], "Maximum")
-					print("Ymax = %i" % current_y_value)
-				print("%i" % current_y_value)
+			if current_y_value != prev_y_value and prev_y_value == minimum:
+				prev_value = data[last_min_index]
+				data[last_min_index] = (prev_value[0], prev_value[1], prev_value[2], "Minimum")
+				print("Ymin = %i" % current_y_value)
+			elif current_y_value != prev_y_value and prev_y_value == maximum:
+				prev_value = data[last_max_index]
+				data[last_max_index] = (prev_value[0], prev_value[1], prev_value[2], "Maximum")
+				print("Ymax = %i" % current_y_value)
+			print("%i" % current_y_value)
 			prev_y_value = current_y_value
 			prev_index = index
 		data[index] = (value[0], value[1], value[2], None)
@@ -132,7 +129,7 @@ def read_from_csv(csv_file):
 		if row[0] == '-' and row[1] == '-':
 			circle_coords.append((None, None, row[2], None))
 		else:
- 			circle_coords.append((row[0], row[1], row[2], row[3] if row[3] != 'None' else None))
+ 			circle_coords.append((row[0], int(row[1]), row[2], row[3] if row[3] != 'None' else None))
 
 	print("Reading from CSV file complete! %i co-ordinates read." % len(circle_coords))
 	return circle_coords
@@ -228,12 +225,14 @@ def main():
 			write_to_csv(data)
 		else:
 			raw_data = read_from_csv(existing_csv)
+			data = get_minima_maxima(raw_data)
+			write_to_csv(data)
 	except FileNotFoundError:
 		raw_data = get_raw_data()
 		data = get_minima_maxima(raw_data)
 		write_to_csv(data)
 
-	plot_data(raw_data)
+	plot_data(data)
 	print("Script execution complete!")
 
 
