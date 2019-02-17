@@ -14,7 +14,6 @@ while True:
 	frame_number = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
 	if frame_number <= TOTAL_FRAMES and frame is not None:
 		frame = imutils.rotate_bound(frame, 180)
-		cv2.putText(frame, str(frame_number), (150,150), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
 		cv2.namedWindow('swag', cv2.WINDOW_NORMAL)
 		cv2.resizeWindow('swag', 800,800)
 		cv2.imshow('swag', frame)
