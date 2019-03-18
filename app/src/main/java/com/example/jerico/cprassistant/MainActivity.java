@@ -1,4 +1,5 @@
 package com.example.jerico.cprassistant;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -15,6 +16,7 @@ import org.opencv.core.Size;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.video.FarnebackOpticalFlow;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -30,7 +32,15 @@ public class MainActivity extends Activity implements OnTouchListener, CvCameraV
     private static final String  TAG              = "MainActivity";
 
     private boolean              mIsColorSelected = false;
+    private boolean mhasProgramStarted = false;
     private Mat                  mRgba;
+    private Mat mPrevGray;
+    private Mat mFlow;
+    private Mat mGray;
+    private Mat mMagnitude;
+    private Mat mDirection;
+    private List<Mat> mChannels;
+    private FarnebackOpticalFlow mFOFlow;
     private Scalar               mBlobColorRgba;
     private Scalar               mBlobColorHsv;
     private ColorBlobDetector    mDetector;
@@ -69,10 +79,12 @@ public class MainActivity extends Activity implements OnTouchListener, CvCameraV
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
         setContentView(R.layout.activity_main);
 
-        mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.color_blob_detection_activity_surface_view);
+        mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.camera_view);
+        mOpenCvCameraView.enableFpsMeter();
+        mOpenCvCameraView.setCameraIndex(1);
+        mOpenCvCameraView.setMaxFrameSize(360, 270);
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
     }
@@ -86,11 +98,10 @@ public class MainActivity extends Activity implements OnTouchListener, CvCameraV
     }
 
     @Override
-    public void onResume()
-    {
+    public void onResume() {
         super.onResume();
         if (!OpenCVLoader.initDebug()) {
-            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization.");
             OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_0_0, this, mLoaderCallback);
         } else {
             Log.d(TAG, "OpenCV library found inside package. Using it!");
@@ -106,12 +117,21 @@ public class MainActivity extends Activity implements OnTouchListener, CvCameraV
 
     public void onCameraViewStarted(int width, int height) {
         mRgba = new Mat(height, width, CvType.CV_8UC4);
+        mPrevGray = new Mat(height, width, CvType.CV_8UC1);
+        mGray = new Mat(height, width, CvType.CV_8UC1);
+        mFlow = new Mat(height, width, CvType.CV_8UC2);
+        mMagnitude = new Mat(height, width, CvType.CV_8UC1);
+        mDirection = new Mat(height, width, CvType.CV_8UC1);
+        mChannels = new ArrayList<Mat>();
+
+
         mDetector = new ColorBlobDetector();
         mSpectrum = new Mat();
         mBlobColorRgba = new Scalar(255);
         mBlobColorHsv = new Scalar(255);
         SPECTRUM_SIZE = new Size(200, 64);
         CONTOUR_COLOR = new Scalar(255,0,0,255);
+        mFOFlow = FarnebackOpticalFlow.create(1, 0.5, true, 10, 1, 5, 1.2, 0);
     }
 
     public void onCameraViewStopped() {
@@ -161,16 +181,19 @@ public class MainActivity extends Activity implements OnTouchListener, CvCameraV
         Imgproc.resize(mDetector.getSpectrum(), mSpectrum, SPECTRUM_SIZE, 0, 0, Imgproc.INTER_LINEAR_EXACT);
 
         mIsColorSelected = true;
+        mhasProgramStarted = true;
 
         touchedRegionRgba.release();
         touchedRegionHsv.release();
 
-        return false; // don't need subsequent touch events
+        return false;
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
         mRgba = inputFrame.rgba();
+        mGray = inputFrame.gray();
 
+        /*
         if (mIsColorSelected) {
             mDetector.process(mRgba);
             List<MatOfPoint> contours = mDetector.getContours();
@@ -183,6 +206,22 @@ public class MainActivity extends Activity implements OnTouchListener, CvCameraV
             Mat spectrumLabel = mRgba.submat(4, 4 + mSpectrum.rows(), 70, 70 + mSpectrum.cols());
             mSpectrum.copyTo(spectrumLabel);
         }
+        */
+
+        if (!mhasProgramStarted) {
+            mPrevGray = mGray;
+        } else {
+            try {
+                mFOFlow.calc(mPrevGray, mGray, mFlow);
+                Core.split(mFlow, mChannels);
+                Core.cartToPolar(mChannels.get(0), mChannels.get(1), mMagnitude, mDirection, true);
+                Log.e("SUCCESS", "" + Core.mean(mMagnitude));
+            } catch (Exception e) {
+                Log.e("THROW_ERROR", e.getMessage());
+            }
+        }
+
+        mPrevGray = mGray;
 
         return mRgba;
     }
