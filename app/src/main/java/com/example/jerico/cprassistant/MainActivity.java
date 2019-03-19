@@ -11,6 +11,7 @@ import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
+import org.opencv.imgproc.Imgproc;
 import org.opencv.video.FarnebackOpticalFlow;
 
 import android.app.Activity;
@@ -167,12 +168,15 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 Core.split(mFlow, mChannels);
                 Core.cartToPolar(mChannels.get(0), mChannels.get(1), mMagnitude, mDirection, true);
 
+                // Thresholding of pixel magnitudes to reduce error naively.
+                Imgproc.threshold(mMagnitude, mMagnitude, 0.75, 0, Imgproc.THRESH_TOZERO);
+
                 // Averaging of magnitude and direction.
                 mAvgMagnitude = (float) Core.mean(mMagnitude).val[0];
                 mAvgDirection = (float) Core.mean(mDirection).val[0];
 
                 // Naive compression detection based on average magnitude.
-                if (mAvgMagnitude > 1) {
+                if (mAvgMagnitude > 1.5) {
                     mCompressionCounter++;
                 }
 
