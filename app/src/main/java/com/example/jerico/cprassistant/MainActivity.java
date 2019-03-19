@@ -18,6 +18,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.SurfaceView;
@@ -25,8 +26,16 @@ import android.view.SurfaceView;
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String  TAG              = "MainActivity";
 
-    private boolean mhasProgramStarted = false;
+    private boolean isCalculating = false;
     private Button startButton;
+    private TextView avgMagnitudeText;
+    private TextView avgDirectionText;
+    private TextView compressionCounterText;
+    private TextView compressionRateText;
+    private float mAvgMagnitude;
+    private float mAvgDirection;
+    private int mCompressionCounter;
+    private float mCompressionRate;
     private Mat mRgba;
     private Mat mPrevGray;
     private Mat mFlow;
@@ -71,14 +80,23 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         startButton = (Button) findViewById(R.id.start_button);
         startButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                mhasProgramStarted = !mhasProgramStarted;
-                if (mhasProgramStarted) {
+                isCalculating = !isCalculating;
+                if (isCalculating) {
+                    mAvgMagnitude = 0;
+                    mAvgDirection = 0;
+                    mCompressionCounter = 0;
+                    mCompressionRate = 0;
                     startButton.setText("Stop");
                 } else {
                     startButton.setText("Start");
                 }
             }
         });
+
+        avgMagnitudeText = (TextView) findViewById(R.id.avg_mag);
+        avgDirectionText = (TextView) findViewById(R.id.avg_dir);
+        compressionCounterText = (TextView) findViewById(R.id.compressions);
+        compressionRateText = (TextView) findViewById(R.id.compression_rate);
 
         mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.camera_view);
         mOpenCvCameraView.enableFpsMeter();
@@ -133,15 +151,36 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         mRgba = inputFrame.rgba();
         mGray = inputFrame.gray();
 
-        if (!mhasProgramStarted) {
+        if (!isCalculating) {
+            avgMagnitudeText.setText("AVG Mag: N/A");
+            avgDirectionText.setText("AVG Dir: N/A");
+            compressionCounterText.setText("CMP: N/A");
+            compressionRateText.setText("CCR: N/A");
             mPrevGray = mGray;
         } else {
             try {
+
+                // Calculate dense optical flow.
                 mFOFlow.calc(mPrevGray, mGray, mFlow);
+
+                // Get magnitude and direction matrices in polar form.
                 Core.split(mFlow, mChannels);
                 Core.cartToPolar(mChannels.get(0), mChannels.get(1), mMagnitude, mDirection, true);
-                Log.e("SUCCESS", "MAG: " + Core.mean(mMagnitude));
-                Log.e("SUCCESS", "DIR: " + Core.mean(mDirection));
+
+                // Averaging of magnitude and direction.
+                mAvgMagnitude = (float) Core.mean(mMagnitude).val[0];
+                mAvgDirection = (float) Core.mean(mDirection).val[0];
+
+                // Naive compression detection based on average magnitude.
+                if (mAvgMagnitude > 1) {
+                    mCompressionCounter++;
+                }
+
+                // Output.
+                avgMagnitudeText.setText("AVG Mag: " + mAvgMagnitude);
+                avgDirectionText.setText("AVG Dir: " + mAvgDirection);
+                compressionCounterText.setText("CMP: " + mCompressionCounter);
+                compressionRateText.setText("CCR: " + mCompressionRate);
             } catch (Exception e) {
                 Log.e("THROW_ERROR", e.getMessage());
             }

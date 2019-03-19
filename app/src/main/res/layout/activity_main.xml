@@ -28,6 +28,30 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Toggle Flow" />
+
+        <TextView
+            android:id="@+id/avg_mag"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="AVG Mag: N/A" />
+
+        <TextView
+            android:id="@+id/avg_dir"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="AVG Dir: N/A" />
+
+        <TextView
+            android:id="@+id/compressions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CMP: N/A" />
+
+        <TextView
+            android:id="@+id/compression_rate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CCR: N/A" />
     </LinearLayout>
 
 </LinearLayout>
