@@ -1,0 +1,37 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:2:1-6:12
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:2:1-6:12
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:2:1-6:12
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:2:1-6:12
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:2:1-6:12
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:2:1-6:12
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:2:1-6:12
+	package
+		ADDED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:3:7-27
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+	android:versionName
+		ADDED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:5:7-34
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+	xmlns:android
+		ADDED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:2:11-69
+	android:versionCode
+		ADDED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml:4:7-33
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+uses-sdk
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+		ADDED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+		ADDED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml
+		INJECTED from /Users/jerico/Code/cpr-assistant/OpenCV4.0.1/AndroidManifest.xml

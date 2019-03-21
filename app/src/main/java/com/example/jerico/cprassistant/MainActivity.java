@@ -8,6 +8,7 @@ import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
+import org.opencv.core.Scalar;
 import org.opencv.core.Mat;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
@@ -103,7 +104,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         mOpenCvCameraView.enableFpsMeter();
         mOpenCvCameraView.setCameraIndex(1);
         mOpenCvCameraView.setMaxFrameSize(360, 270);
-        mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
+        mOpenCvCameraView.setVisibility(SurfaceView.INVISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
     }
 
@@ -160,7 +161,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             mPrevGray = mGray;
         } else {
             try {
-
                 // Calculate dense optical flow.
                 mFOFlow.calc(mPrevGray, mGray, mFlow);
 
@@ -169,14 +169,17 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 Core.cartToPolar(mChannels.get(0), mChannels.get(1), mMagnitude, mDirection, true);
 
                 // Thresholding of pixel magnitudes to reduce error naively.
-                Imgproc.threshold(mMagnitude, mMagnitude, 0.75, 0, Imgproc.THRESH_TOZERO);
+                Imgproc.threshold(mMagnitude, mMagnitude, 1, 0, Imgproc.THRESH_TOZERO);
+                Mat mask = new Mat(mMagnitude.rows(), mMagnitude.cols(), CvType.CV_8U);
+                Core.bitwise_or(mMagnitude, mask, mask);
+                Core.bitwise_and(mDirection, mask, mDirection);
 
                 // Averaging of magnitude and direction.
                 mAvgMagnitude = (float) Core.mean(mMagnitude).val[0];
                 mAvgDirection = (float) Core.mean(mDirection).val[0];
 
                 // Naive compression detection based on average magnitude.
-                if (mAvgMagnitude > 1.5) {
+                if (mAvgMagnitude > 1 && mAvgDirection > 200) {
                     mCompressionCounter++;
                 }
 
