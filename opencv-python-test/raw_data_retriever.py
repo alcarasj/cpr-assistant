@@ -70,15 +70,15 @@ def get_minima_maxima(data):
 				maximum = current_y_value
 				last_max_index = index
 
-			if current_y_value != prev_y_value and prev_y_value == minimum and (maximum - minimum) > 20:
+			if current_y_value > prev_y_value and prev_y_value == minimum:
 				prev_value = data[last_min_index]
 				data[last_min_index] = (prev_value[0], prev_value[1], prev_value[2], "Minimum")
 				print("Ymin = %i" % current_y_value)
-			elif current_y_value != prev_y_value and prev_y_value == maximum and (maximum - minimum) > 20:
+			elif current_y_value < prev_y_value and prev_y_value == maximum:
 				prev_value = data[last_max_index]
 				data[last_max_index] = (prev_value[0], prev_value[1], prev_value[2], "Maximum")
 				print("Ymax = %i" % current_y_value)
-			print("%i" % current_y_value)
+			print("[%i] %i" % (index, current_y_value))
 			prev_y_value = current_y_value
 			prev_index = index
 		data[index] = (value[0], value[1], value[2], None)

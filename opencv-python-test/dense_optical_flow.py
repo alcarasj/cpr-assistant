@@ -8,12 +8,12 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 WEBCAM_MODE = False
-READ_ONLY = True
+READ_ONLY = False
 INPUT_VIDEO = './Ken1BUV.mp4'
 MIN_TIME_BETWEEN_MAXIMUMS = 0.2
 STRIDE = 8
 MIN_FLOW_THRESHOLD = 0.75
-WEIGHTING_THRESHOLD = 0.1
+WEIGHTING_THRESHOLD = 0.2
 START_FRAME = 146
 SCALE = 0.33
 LEARNING_RATE = 0.008
@@ -132,7 +132,7 @@ def process_video():
             upward_movement_mask = np.zeros_like(magnitude)
 
             # Isolate downward movements.
-            np.place(downward_movement_mask, np.logical_and(direction_in_deg > 110, direction_in_deg < 250), 1)
+            np.place(downward_movement_mask, np.logical_and(direction_in_deg > 100, direction_in_deg < 260), 1)
             downward_movement = cv2.bitwise_and(magnitude, magnitude, mask=downward_movement_mask.astype(np.int8))
             downward_movement = cv2.bitwise_and(downward_movement, downward_movement, mask=weights_mask)
             downward_sum = np.sum(downward_movement)
