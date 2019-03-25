@@ -7,7 +7,8 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
-CSV_DIR = "./csv_raw/Ken1FCSV.mp4FINAL.csv"
+#CSV_DIR = "./csv_raw/Ken1FCSV.mp4FINAL.csv"
+CSV_DIR = "./csv_results/Ken1BUV.mp4FINAL.csv"
 FPS = 13
 
 

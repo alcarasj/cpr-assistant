@@ -150,12 +150,12 @@ def process_video():
 
             total_movement_pcg = (np.sum(np.where(downward_movement > 0)[0]) + np.sum(np.where(upward_movement > 0)[0])) / total_pixels
             vertical_resultant = upward_sum - downward_sum
-            five_frame_avg = sum([val[0] for val in data[-5:]]) / 5
+            five_frame_avg = sum([val[0] for val in data[-3:]]) / 3
             state = None
 
             if current_frame_number > START_FRAME or WEBCAM_MODE:
-                # Calculate weights for isolation of zone with high movement density.
 
+                # Calculate weights for isolation of zone with high movement density.
                 old_weights = weights * (1 - LEARNING_RATE)
                 temp = (magnitude * LEARNING_RATE)
                 weights = np.add(old_weights, temp)
@@ -164,7 +164,7 @@ def process_video():
                 np.place(weights_mask, weights < WEIGHTING_THRESHOLD, 0)
 
                 # Elapsed time for calculating CCR.
-                elapsed_time = float(current_frame_number - START_FRAME) / float(FPS)
+                elapsed_time = float((current_frame_number - START_FRAME) / FPS)
 
                 # Compression detection.
                 if five_frame_avg > prev_five_frame_avg:
@@ -174,7 +174,7 @@ def process_video():
                     prev_compression_maximum = maximum
                     compressions += 1
                     maximum = 0
-                    state = "Maximum"
+                    data[-1][3] = "Maximum"
 
                     # CCR is calculated as the time difference to complete two compressions, measured in BPM.
                     if prev_compression_time:
@@ -187,7 +187,7 @@ def process_video():
 
                     prev_compression_time = elapsed_time
 
-            data.append((vertical_resultant, int(five_frame_avg), int(total_movement_pcg), state))
+            data.append([vertical_resultant, int(five_frame_avg), int(total_movement_pcg), state])
 
             # Outputs.
             hsv[..., 0] = cv2.normalize(direction_in_deg, None, 0, 179, cv2.NORM_MINMAX)
