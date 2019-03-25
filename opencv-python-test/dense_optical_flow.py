@@ -8,7 +8,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 WEBCAM_MODE = False
-READ_ONLY = False
+READ_ONLY = True
 INPUT_VIDEO = './Ken1BUV.mp4'
 MIN_TIME_BETWEEN_MAXIMUMS = 0.2
 STRIDE = 8
@@ -18,7 +18,7 @@ START_FRAME = 146
 SCALE = 0.33
 LEARNING_RATE = 0.008
 VIDEO = cv2.VideoCapture(0 if WEBCAM_MODE else INPUT_VIDEO)
-FPS = VIDEO.get(cv2.CAP_PROP_FPS)
+FPS = int(VIDEO.get(cv2.CAP_PROP_FPS))
 NUMBER_OF_FRAMES = int(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
 DURATION = float(NUMBER_OF_FRAMES - START_FRAME) / float(FPS)
 TEXT_START_POS_Y = 30
@@ -31,7 +31,9 @@ def plot_data(data):
     print("Plotting data...")
     frames = list(range(1, len(data) + 1))
     movement = [coord[1] for coord in data]
+    max_min = [coord[1] if coord[3] else None for coord in data]
     plt.plot(frames, movement)
+    plt.plot(frames, max_min, "x")
     plt.ylabel('Movement')
     plt.xlabel('Frame')
     plt.axis([0, len(data) * 1.5, -5000, 5000])
@@ -46,7 +48,7 @@ def read_from_csv(csv_file):
 
     reader = csv.reader(csv_file, delimiter=',')
     for row in reader:
-        coords.append((float(row[0])/ 100, int(row[1])/ 100))
+        coords.append((float(row[0])/ 100, int(row[1])/ 100, row[2], row[3] if row[3] != 'None' else None))
 
     print("Reading from CSV file complete! %i co-ordinates read." % len(coords))
     return coords
@@ -70,7 +72,8 @@ def write_to_csv(data):
     row_count = 0
 
     for coord in data:
-        writer.writerow([coord[0], coord[1], coord[2]])
+        writer.writerow([coord[0], coord[1], coord[2], coord[3] if coord[3] else "None"])
+        row_count += 1
 
     csv_file.close()
     print("Write to CSV file complete! %i/%i datapoints written." % (row_count, len(data))) 
@@ -92,9 +95,11 @@ def process_video():
     weights_hsv = np.zeros_like(current_frame_bgr)
     weights_hsv[..., 1] = 0
     weights_hsv[..., 0] = 0
-    minimum = 0
+    maximum = 0
     prev_compression_time = None
+    prev_compression_maximum = 0
     prev_resultant = 0
+    prev_five_frame_avg = 0
     elapsed_time = 0
     ccr = 0
     mean_ccr = 0
@@ -146,8 +151,7 @@ def process_video():
             total_movement_pcg = (np.sum(np.where(downward_movement > 0)[0]) + np.sum(np.where(upward_movement > 0)[0])) / total_pixels
             vertical_resultant = upward_sum - downward_sum
             five_frame_avg = sum([val[0] for val in data[-5:]]) / 5
-
-            data.append((vertical_resultant, int(five_frame_avg), int(total_movement_pcg)))
+            state = None
 
             if current_frame_number > START_FRAME or WEBCAM_MODE:
                 # Calculate weights for isolation of zone with high movement density.
@@ -163,22 +167,27 @@ def process_video():
                 elapsed_time = float(current_frame_number - START_FRAME) / float(FPS)
 
                 # Compression detection.
-                if vertical_resultant > prev_resultant and minimum == prev_resultant:
+                if five_frame_avg > prev_five_frame_avg:
+                    maximum = five_frame_avg
+
+                if five_frame_avg < prev_five_frame_avg and maximum == prev_five_frame_avg:
+                    prev_compression_maximum = maximum
                     compressions += 1
-                    minimum = 0
+                    maximum = 0
+                    state = "Maximum"
 
                     # CCR is calculated as the time difference to complete two compressions, measured in BPM.
                     if prev_compression_time:
                         time_diff = elapsed_time - prev_compression_time
-                        ccr = 60 / (elapsed_time - prev_compression_time)
+                        ccr = 60 / time_diff
 
                         if time_diff > MIN_TIME_BETWEEN_MAXIMUMS:
                             ccr_data = np.append(ccr_data, ccr)
                             mean_ccr = np.mean(ccr_data)
 
                     prev_compression_time = elapsed_time
-                if vertical_resultant < prev_resultant:
-                    minimum = prev_resultant
+
+            data.append((vertical_resultant, int(five_frame_avg), int(total_movement_pcg), state))
 
             # Outputs.
             hsv[..., 0] = cv2.normalize(direction_in_deg, None, 0, 179, cv2.NORM_MINMAX)
@@ -199,8 +208,8 @@ def process_video():
             cv2.putText(flow_bgr, "Time: %f" % elapsed_time, (25, TEXT_START_POS_Y), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
             cv2.putText(flow_bgr, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
             cv2.putText(flow_bgr, "AVGCCR: %fbpm" % mean_ccr, (25, TEXT_START_POS_Y + 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-            cv2.putText(flow_bgr, "VECTOR: %f" % vertical_resultant, (25, TEXT_START_POS_Y + 90), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-            cv2.putText(flow_bgr, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 150), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+            cv2.putText(flow_bgr, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 90), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+            cv2.putText(flow_bgr, "5FA: %i" % five_frame_avg, (25, TEXT_START_POS_Y + 120), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
             cv2.namedWindow('Video', cv2.WINDOW_NORMAL)
             cv2.namedWindow('Flow (All)', cv2.WINDOW_NORMAL)
             cv2.namedWindow('Flow (Upward)', cv2.WINDOW_NORMAL)
@@ -216,6 +225,7 @@ def process_video():
                 break
 
             prev_resultant = vertical_resultant
+            prev_five_frame_avg = five_frame_avg
 
         prev_frame_bgr = current_frame_bgr
 

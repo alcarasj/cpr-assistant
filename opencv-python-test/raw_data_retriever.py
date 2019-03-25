@@ -226,7 +226,7 @@ def main():
 		else:
 			raw_data = read_from_csv(existing_csv)
 			data = get_minima_maxima(raw_data)
-			write_to_csv(data)
+			#write_to_csv(data)
 	except FileNotFoundError:
 		raw_data = get_raw_data()
 		data = get_minima_maxima(raw_data)
