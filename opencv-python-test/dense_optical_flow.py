@@ -9,16 +9,16 @@ import matplotlib.pyplot as plt
 
 WEBCAM_MODE = False
 READ_ONLY = False
-INPUT_VIDEO = './Ken1BUV.mp4'
+INPUT_VIDEO = 'Ken1BUV.mp4'
 MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.5
 STRIDE = 8
 MIN_FLOW_THRESHOLD = 0.5
-START_FRAME = 77
+START_FRAME = 146
 SCALE = 0.33
 LEARNING_RATE = 0.005
 VIDEO = cv2.VideoCapture(0 if WEBCAM_MODE else INPUT_VIDEO)
 FPS = int(VIDEO.get(cv2.CAP_PROP_FPS))
-NUMBER_OF_FRAMES = int(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
+NUMBER_OF_FRAMES = float(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
 DURATION = float(NUMBER_OF_FRAMES - START_FRAME) / float(FPS)
 TEXT_START_POS_Y = 30
 CSV_DIR = 'csv_results/%s.csv'
@@ -117,7 +117,7 @@ def process_video():
     while True:
         if prev_frame_bgr.any():
             (ret, current_frame_bgr) = VIDEO.read()
-            current_frame_number = int(VIDEO.get(cv2.CAP_PROP_POS_FRAMES))
+            current_frame_number = VIDEO.get(cv2.CAP_PROP_POS_FRAMES)
 
             if current_frame_bgr is None:
                 break
@@ -141,7 +141,7 @@ def process_video():
 
             # Isolate downward movements.
             np.place(downward_movement_mask, np.logical_and(direction_in_deg > 190, direction_in_deg < 350), 1)
-            downward_movement = cv2.bitwise_and(magnitude, magnitude, mask=downward_movement_mask.astype(np.int8))
+            downward_movement = np.multiply(magnitude, downward_movement_mask)
             downward_movement = np.multiply(downward_movement, weights_mask)
             downward_sum = np.sum(downward_movement)
 
@@ -165,7 +165,7 @@ def process_video():
                     weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
                     weights_mask = weights
 
-                # Elapsed time frrom starting frame for calculating CCR.
+                # Elapsed time from starting frame for calculating CCR.
                 elapsed_time = float((current_frame_number - START_FRAME) / FPS)
 
                 # Compression detection.
@@ -181,7 +181,7 @@ def process_video():
                     upward_movement_detected_within_allowed_time = False
                     strong_downward_movement_detected = False
                     compressions += 1
-                    state = "Maximum"
+                    state = "Compression"
 
                     # CCR is calculated as the time difference to complete two compressions, measured in BPM.
                     if prev_compression_time:
@@ -208,7 +208,7 @@ def process_video():
                 weights_hsv[..., 2] = cv2.normalize(weights_mask, None, 0, 255, cv2.NORM_MINMAX)
                 weights_bgr = cv2.cvtColor(weights_hsv, cv2.COLOR_HSV2BGR)
 
-                print("%s[%i] UP: %i, DOWN: %i, RSLT: %i (%ipc) S: %s" % ("----CCR: %f----" % ccr if state else '', current_frame_number, upward_sum, downward_sum, vertical_resultant, total_movement_pcg, state))
+                print("%s[%i] UP: %i, DOWN: %i, RSLT: %i (%ipc) %s" % ("----CCR: %f at %fs----" % (ccr, elapsed_time) if state else '', current_frame_number, upward_sum, downward_sum, vertical_resultant, total_movement_pcg, (", TIMEDIFF: %f" % time_diff) if state else ""))
 
                 cv2.putText(flow_bgr, "Time: %f" % elapsed_time, (25, TEXT_START_POS_Y), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
                 cv2.putText(flow_bgr, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)

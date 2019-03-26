@@ -26,6 +26,8 @@ START_FRAME = args.start_frame
 VIDEO_OUTPUT = args.video_output
 DEBUG_MODE = args.debug_mode
 CSV_RAW_DIR = 'csv_raw/%s.csv'
+COMPRESSION_BOUNDS = (1275, 1325)
+FPS = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_FPS))
 
 
 
@@ -46,39 +48,39 @@ def show_output(frame, frame_number, y_value, avg_value):
 
 
 
-def get_minima_maxima(data):
+def get_maximums(data):
 	""" 
-	Reads the raw data and gets the local minimums and maximums.
+	Reads the raw data and gets the local maximums.
 	The accuracy of this method must be verified manually.
 	"""
 
 	coords = data
 	prev_y_value = 0
-	last_min_index = 0
 	last_max_index = 0
 	prev_index = 0
-	minimum = 0
 	maximum = 0
+	compressions = 0
+	ccr = 0
+	prev_compression_time = None
 
 	for index, value in enumerate(coords):
 		current_y_value = value[1]
-		if index > START_FRAME - 1 and current_y_value:
-			if current_y_value < prev_y_value:
-				minimum = current_y_value
-				last_min_index = index
-			elif current_y_value > prev_y_value:
+		if index > START_FRAME and current_y_value:
+			if current_y_value > prev_y_value:
 				maximum = current_y_value
 				last_max_index = index
 
-			if current_y_value > prev_y_value and prev_y_value == minimum:
-				prev_value = data[last_min_index]
-				data[last_min_index] = (prev_value[0], prev_value[1], prev_value[2], "Minimum")
-				print("Ymin = %i" % current_y_value)
-			elif current_y_value < prev_y_value and prev_y_value == maximum:
+			if current_y_value < prev_y_value and prev_y_value == maximum and COMPRESSION_BOUNDS[0] < prev_y_value and prev_y_value < COMPRESSION_BOUNDS[1]:
+
+				elapsed_time = float((index - START_FRAME) / FPS)
 				prev_value = data[last_max_index]
-				data[last_max_index] = (prev_value[0], prev_value[1], prev_value[2], "Maximum")
-				print("Ymax = %i" % current_y_value)
-			print("[%i] %i" % (index, current_y_value))
+				data[last_max_index] = (prev_value[0], prev_value[1], prev_value[2], "Compression")
+				compressions += 1
+				if prev_compression_time:
+					time_diff = elapsed_time - prev_compression_time
+					ccr = 60 / time_diff
+				prev_compression_time = elapsed_time
+				print("[%i] Nc: %i, CCR: %i" % (index, compressions, ccr))
 			prev_y_value = current_y_value
 			prev_index = index
 		data[index] = (value[0], value[1], value[2], None)
@@ -142,7 +144,7 @@ def plot_data(data):
 	print("Plotting data...")
 	frames = list(range(1, len(data) + 1))
 	y_coords = [coord[1] for coord in data]
-	max_min = [coord[1] if coord[3] == "Maximum" else None for coord in data]
+	max_min = [coord[1] if coord[3] == "Compression" else None for coord in data]
 	plt.plot(frames, y_coords)
 	plt.plot(frames, max_min, "x")
 	plt.ylabel('Y-Coordinates of Hough Circle Transform')
@@ -169,7 +171,7 @@ def get_raw_data():
 		(ret, frame) = VIDEO_CAPTURE.read()
 		frame_number = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_POS_FRAMES))
 
-		in_valid_frame = (frame_number <= TOTAL_FRAMES) and (frame is not None)
+		in_valid_frame = (frame_number <= TOTAL_FRAMES) and (ret == True)
 
 		if in_valid_frame:
 			frame = imutils.rotate_bound(frame, 270)
@@ -222,15 +224,15 @@ def main():
 		existing_csv = open(CSV_RAW_DIR % INPUT_VIDEO)
 		if OVERWRITE_CSV:
 			raw_data = get_raw_data()
-			data = get_minima_maxima(raw_data)
+			data = get_maximums(raw_data)
 			write_to_csv(data)
 		else:
 			raw_data = read_from_csv(existing_csv)
-			data = get_minima_maxima(raw_data)
-			#write_to_csv(data)
+			data = get_maximums(raw_data)
+			write_to_csv(data)
 	except FileNotFoundError:
 		raw_data = get_raw_data()
-		data = get_minima_maxima(raw_data)
+		data = get_maximums(raw_data)
 		write_to_csv(data)
 
 	plot_data(data)
