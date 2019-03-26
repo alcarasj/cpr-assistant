@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 #CSV_DIR = "./csv_raw/Ken1FCSV.mp4FINAL.csv"
 CSV_DIR = "./csv_results/Ken1BUV.mp4FINAL.csv"
-FPS = 13
+FPS = 30
 
 
 def read_from_csv(csv_file):
@@ -20,7 +20,7 @@ def read_from_csv(csv_file):
 
     reader = csv.reader(csv_file, delimiter=',')
     for index, row in enumerate(reader):
-        coords.append((index, row[3]))
+        coords.append((index + 1, row[3]))
 
     print("Reading from CSV file complete! %i co-ordinates read." % len(coords))
     return coords
@@ -32,19 +32,19 @@ def evaluate_ccr(data):
 	ccr_data = np.array([])
 	mean_ccr = 0
 	compressions = 0
-	prev_compression_time = 0
+	prev_compression_time = None
 
 	for datapoint in data:
 
-		elapsed_time = datapoint[0] / FPS
-		time_diff = elapsed_time - prev_compression_time
+		elapsed_time = float(datapoint[0] / FPS)
 
 		if datapoint[1] == "Maximum":
 			compressions += 1
-			if compressions > 0:
+			if prev_compression_time:
+				time_diff = elapsed_time - prev_compression_time
 				ccr = 60 / time_diff
 				ccr_data = np.append(ccr_data, ccr)
-				print("Nc: %i, CCR: %f, MEAN: %f" % (compressions, ccr, np.mean(ccr_data)))
+				print("[%i] Nc: %i, CCR: %f, MEAN: %f, TIMEDIFF: %f" % (datapoint[0], compressions, ccr, np.mean(ccr_data), time_diff))
 			prev_compression_time = elapsed_time
 
 

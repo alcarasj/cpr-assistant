@@ -12,8 +12,8 @@ READ_ONLY = False
 INPUT_VIDEO = './Ken1BUV.mp4'
 MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.5
 STRIDE = 8
-MIN_FLOW_THRESHOLD = 0.75
-START_FRAME = 146
+MIN_FLOW_THRESHOLD = 0.5
+START_FRAME = 77
 SCALE = 0.33
 LEARNING_RATE = 0.005
 VIDEO = cv2.VideoCapture(0 if WEBCAM_MODE else INPUT_VIDEO)
@@ -29,11 +29,12 @@ def plot_data(data):
 
     print("Plotting data...")
     frames = list(range(1, len(data) + 1))
-    movement = [coord[1] for coord in data]
-    max_min = [coord[1] if coord[3] else None for coord in data]
+    movement = [coord[0] for coord in data]
+    max_min = [coord[0] if coord[3] else None for coord in data]
     plt.plot(frames, movement)
     plt.plot(frames, max_min, "x")
-    plt.ylabel('Movement')
+    plt.legend(["Optical Flow", "Detected Compression"])
+    plt.ylabel('Resultant Vertical Displacement (Pixels)')
     plt.xlabel('Frame')
     plt.axis([0, len(data) * 1.5, -5000, 5000])
     plt.show()
@@ -47,7 +48,7 @@ def read_from_csv(csv_file):
 
     reader = csv.reader(csv_file, delimiter=',')
     for row in reader:
-        coords.append((float(row[0])/ 100, int(row[1])/ 100, row[2], row[3] if row[3] != 'None' else None))
+        coords.append((float(row[0])/ 100, float(row[1])/ 100, row[2], row[3] if row[3] != 'None' else None))
 
     print("Reading from CSV file complete! %i co-ordinates read." % len(coords))
     return coords
@@ -83,6 +84,8 @@ def process_video():
     # Initial values.
     (ret, current_frame_bgr) = VIDEO.read()
     print("ORIGINAL RESOLUTION: %ix%i" % (len(current_frame_bgr[0]), len(current_frame_bgr)))
+    print("DURATION IN SECONDS: %f" % DURATION)
+    print("FPS: %f" % FPS)
     current_frame_bgr = cv2.resize(current_frame_bgr, (0, 0), fx=SCALE, fy=SCALE) 
     hsv = np.zeros_like(current_frame_bgr)
     hsv[...,1] = 255
@@ -106,6 +109,7 @@ def process_video():
     strong_downward_movement_detected = False
     upward_movement_detected_within_allowed_time = False
     strong_downward_movement_time = 0
+    time_diff = 0
 
     data = []
 
@@ -128,21 +132,21 @@ def process_video():
 
             flow = cv2.calcOpticalFlowFarneback(prev=prev_frame_gray, next=current_frame_gray, flow=None, pyr_scale=0.5, levels=3, winsize=25, iterations=1, poly_n=5, poly_sigma=1.2, flags=0)
             magnitude, direction = cv2.cartToPolar(flow[...,0], flow[...,1])
-            direction_in_deg = direction * 180 / np.pi / 2
+            direction_in_deg = direction *  (180 / np.pi)
 
             # Apply thresholding.
-            np.place(magnitude, magnitude <= MIN_FLOW_THRESHOLD, 0)
+            np.place(magnitude, magnitude < MIN_FLOW_THRESHOLD, 0)
             downward_movement_mask = np.zeros_like(magnitude)
             upward_movement_mask = np.zeros_like(magnitude)
 
             # Isolate downward movements.
-            np.place(downward_movement_mask, np.logical_and(direction_in_deg > 90, direction_in_deg < 270), 1)
+            np.place(downward_movement_mask, np.logical_and(direction_in_deg > 190, direction_in_deg < 350), 1)
             downward_movement = cv2.bitwise_and(magnitude, magnitude, mask=downward_movement_mask.astype(np.int8))
             downward_movement = np.multiply(downward_movement, weights_mask)
             downward_sum = np.sum(downward_movement)
 
             # Isolate upward movements.
-            np.place(upward_movement_mask, np.logical_or(direction_in_deg > 270, direction_in_deg < 90), 1)
+            np.place(upward_movement_mask, np.logical_and(direction_in_deg > 10, direction_in_deg < 170), 1)
             upward_movement = cv2.bitwise_and(magnitude, magnitude, mask=upward_movement_mask.astype(np.int8))
             upward_movement = np.multiply(upward_movement, weights_mask)
             upward_sum = np.sum(upward_movement)
@@ -151,35 +155,33 @@ def process_video():
             vertical_resultant = upward_sum - downward_sum
             state = None
 
-            if current_frame_number > START_FRAME or WEBCAM_MODE:
+            if current_frame_number >= START_FRAME or WEBCAM_MODE:
 
                 # Calculate weights for isolation of zone with high movement density.
-                old_weights = weights * (1 - LEARNING_RATE)
-                temp = (magnitude * LEARNING_RATE)
-                weights = np.add(old_weights, temp)
-                weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
-                weights_mask = weights
+                if compressions > 0:
+                    old_weights = weights * (1 - LEARNING_RATE)
+                    temp = (magnitude * LEARNING_RATE)
+                    weights = np.add(old_weights, temp)
+                    weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
+                    weights_mask = weights
 
-                # Elapsed time for calculating CCR.
+                # Elapsed time frrom starting frame for calculating CCR.
                 elapsed_time = float((current_frame_number - START_FRAME) / FPS)
 
                 # Compression detection.
-                if not strong_downward_movement_detected and vertical_resultant < -5000 and total_movement_pcg > 30:
+                if not strong_downward_movement_detected and vertical_resultant < -8000 and total_movement_pcg > 30:
                     strong_downward_movement_detected = True
                     strong_downward_movement_time = elapsed_time
-                    print("STRONG DWM")
-                elif strong_downward_movement_detected and vertical_resultant > 5000 and total_movement_pcg > 30 and (elapsed_time - strong_downward_movement_time) <= MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
+                elif strong_downward_movement_detected and vertical_resultant > 8000 and total_movement_pcg > 30 and (elapsed_time - strong_downward_movement_time) <= MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
                     upward_movement_detected_within_allowed_time = True
-                    print("STRONG DWM + STRONG UWM")
-                elif (elapsed_time - strong_downward_movement_time) > MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
+                elif strong_downward_movement_detected and (elapsed_time - strong_downward_movement_time) > MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
                     strong_downward_movement_detected = False
-                    print("RESET")
 
                 if strong_downward_movement_detected and upward_movement_detected_within_allowed_time:
                     upward_movement_detected_within_allowed_time = False
                     strong_downward_movement_detected = False
                     compressions += 1
-                    data[-1][3] = "Maximum"
+                    state = "Maximum"
 
                     # CCR is calculated as the time difference to complete two compressions, measured in BPM.
                     if prev_compression_time:
@@ -190,43 +192,44 @@ def process_video():
 
                     prev_compression_time = elapsed_time
 
-            data.append([vertical_resultant, mean_ccr, int(total_movement_pcg), state])
+                data.append([vertical_resultant, mean_ccr, int(total_movement_pcg), state])
 
-            # Outputs.
-            hsv[..., 0] = cv2.normalize(direction_in_deg, None, 0, 179, cv2.NORM_MINMAX)
-            hsv[..., 2] = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)
-            flow_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+                # Outputs.
+                hsv[..., 0] = cv2.normalize(direction_in_deg, None, 0, 179, cv2.NORM_MINMAX)
+                hsv[..., 2] = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)
+                flow_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-            hsv[..., 2] = cv2.normalize(upward_movement, None, 0, 255, cv2.NORM_MINMAX)
-            flow_up_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+                hsv[..., 2] = cv2.normalize(upward_movement, None, 0, 255, cv2.NORM_MINMAX)
+                flow_up_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-            hsv[..., 2] = cv2.normalize(downward_movement, None, 0, 255, cv2.NORM_MINMAX)      
-            flow_down_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+                hsv[..., 2] = cv2.normalize(downward_movement, None, 0, 255, cv2.NORM_MINMAX)      
+                flow_down_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-            weights_hsv[..., 2] = cv2.normalize(weights_mask, None, 0, 255, cv2.NORM_MINMAX)
-            weights_bgr = cv2.cvtColor(weights_hsv, cv2.COLOR_HSV2BGR)
+                weights_hsv[..., 2] = cv2.normalize(weights_mask, None, 0, 255, cv2.NORM_MINMAX)
+                weights_bgr = cv2.cvtColor(weights_hsv, cv2.COLOR_HSV2BGR)
 
-            print("[%i] = %i (%ipc)" % (current_frame_number, vertical_resultant, total_movement_pcg))
+                print("%s[%i] UP: %i, DOWN: %i, RSLT: %i (%ipc) S: %s" % ("----CCR: %f----" % ccr if state else '', current_frame_number, upward_sum, downward_sum, vertical_resultant, total_movement_pcg, state))
 
-            cv2.putText(flow_bgr, "Time: %f" % elapsed_time, (25, TEXT_START_POS_Y), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-            cv2.putText(flow_bgr, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-            cv2.putText(flow_bgr, "AVGCCR: %fbpm" % mean_ccr, (25, TEXT_START_POS_Y + 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-            cv2.putText(flow_bgr, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 90), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-            cv2.namedWindow('Video', cv2.WINDOW_NORMAL)
-            cv2.namedWindow('Flow (All)', cv2.WINDOW_NORMAL)
-            cv2.namedWindow('Flow (Upward)', cv2.WINDOW_NORMAL)
-            cv2.namedWindow('Flow (Downward)', cv2.WINDOW_NORMAL)
-            cv2.imshow('Weighted Mask', cv2.WINDOW_NORMAL)
-            cv2.imshow('Video', current_frame_bgr)
-            cv2.imshow('Flow (All)', flow_bgr)
-            cv2.imshow('Flow (Upward)', flow_up_bgr)
-            cv2.imshow('Flow (Downward)', flow_down_bgr)
-            cv2.imshow('Weighted Mask', weights_bgr)
-            k = cv2.waitKey(30) & 0xff
-            if k == 27:
-                break
+                cv2.putText(flow_bgr, "Time: %f" % elapsed_time, (25, TEXT_START_POS_Y), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "AVGCCR: %fbpm" % mean_ccr, (25, TEXT_START_POS_Y + 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 90), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "TIMEDIFF: %f" % time_diff, (25, TEXT_START_POS_Y + 120), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.namedWindow('Video', cv2.WINDOW_NORMAL)
+                cv2.namedWindow('Flow (All)', cv2.WINDOW_NORMAL)
+                cv2.namedWindow('Flow (Upward)', cv2.WINDOW_NORMAL)
+                cv2.namedWindow('Flow (Downward)', cv2.WINDOW_NORMAL)
+                cv2.imshow('Weighted Mask', cv2.WINDOW_NORMAL)
+                cv2.imshow('Video', current_frame_bgr)
+                cv2.imshow('Flow (All)', flow_bgr)
+                cv2.imshow('Flow (Upward)', flow_up_bgr)
+                cv2.imshow('Flow (Downward)', flow_down_bgr)
+                cv2.imshow('Weighted Mask', weights_bgr)
+                k = cv2.waitKey(30) & 0xff
+                if k == 27:
+                    break
 
-            prev_resultant = vertical_resultant
+                prev_resultant = vertical_resultant
 
         prev_frame_bgr = current_frame_bgr
 

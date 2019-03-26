@@ -142,11 +142,12 @@ def plot_data(data):
 	print("Plotting data...")
 	frames = list(range(1, len(data) + 1))
 	y_coords = [coord[1] for coord in data]
-	max_min = [coord[1] if coord[3] else None for coord in data]
+	max_min = [coord[1] if coord[3] == "Maximum" else None for coord in data]
 	plt.plot(frames, y_coords)
 	plt.plot(frames, max_min, "x")
-	plt.ylabel('Y-Coordinates')
+	plt.ylabel('Y-Coordinates of Hough Circle Transform')
 	plt.xlabel('Frame')
+	plt.legend(['Ground Truth', 'Compression'])
 	plt.axis([0, len(data), 0, 2000])
 	plt.show()
 
