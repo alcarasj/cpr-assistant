@@ -34,8 +34,8 @@ print("FPS: %i" % FPS)
 def show_output(frame, frame_number, y_value):
 	""" Shows the video output in a window. """
 
-	cv2.putText(frame, "Frame: %i" % frame_number, (150, 200), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
-	cv2.putText(frame, "Y: %s" % str(y_value), (150, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
+	cv2.putText(frame, "Frame: %i" % frame_number, (150, 200), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=3)
+	cv2.putText(frame, "Y: %s" % str(y_value), (150, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=3)
 	cv2.namedWindow('Output', cv2.WINDOW_NORMAL)
 	cv2.resizeWindow('Output', 800, 800)
 	cv2.imshow('Output', frame)
@@ -47,10 +47,11 @@ def show_output(frame, frame_number, y_value):
 
 
 
-def get_maximums(data):
+def get_compressions(data):
 	""" 
-	Reads the raw data and gets the local maximums.
-	The accuracy of this method must be verified manually.
+	Reads the raw data and gets the compressions.
+	A local maximum detected within the bounds defined in COMPRESSION_BOUNDS is a compression.
+	The accuracy of this method must be verified manually as there may be false positives.
 	"""
 
 	coords = data
@@ -145,7 +146,7 @@ def plot_data(data):
 	max_min = [coord[1] if coord[3] == "Compression" else None for coord in data]
 	plt.plot(frames, y_coords, 'b')
 	plt.plot(frames, max_min, "r*")
-	plt.ylabel('Y-Coordinates of Hough Circle Transform')
+	plt.ylabel('Y-Coordinates of Detected Ball')
 	plt.xlabel('Frame')
 	plt.legend(['Ground Truth', 'Compression'])
 	plt.axis([0, len(data), 0, 2000])
@@ -213,15 +214,15 @@ def main():
 		existing_csv = open(CSV_RAW_DIR % INPUT_VIDEO)
 		if OVERWRITE_CSV:
 			raw_data = get_raw_data()
-			data = get_maximums(raw_data) if CALCULATE_MAXIMUMS else raw_data
+			data = get_compressions(raw_data) if CALCULATE_MAXIMUMS else raw_data
 			write_to_csv(data)
 		else:
 			raw_data = read_from_csv(existing_csv)
-			data = get_maximums(raw_data) if CALCULATE_MAXIMUMS else raw_data
+			data = get_compressions(raw_data) if CALCULATE_MAXIMUMS else raw_data
 			write_to_csv(data)
 	except FileNotFoundError:
 		raw_data = get_raw_data()
-		data = get_maximums(raw_data) if CALCULATE_MAXIMUMS else raw_data
+		data = get_compressions(raw_data) if CALCULATE_MAXIMUMS else raw_data
 		write_to_csv(data)
 
 	plot_data(data)

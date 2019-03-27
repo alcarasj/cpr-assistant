@@ -7,20 +7,33 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
+# Script execution configuration constants.
 WEBCAM_MODE = False
-READ_ONLY = True
-INPUT_VIDEO = 'Jerico2BUV.mp4'
-MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.5
-MIN_FLOW_THRESHOLD = 0.33
-START_FRAME = 0
-SCALE = 0.33
-LEARNING_RATE = 0.0075
+READ_ONLY = False
+SHOW_OUTPUT = True
+SHOW_GT = False
+INPUT_VIDEO = 'Jerico1BUV.mp4'
 VIDEO = cv2.VideoCapture(0 if WEBCAM_MODE else INPUT_VIDEO)
 FPS = int(VIDEO.get(cv2.CAP_PROP_FPS))
 NUMBER_OF_FRAMES = float(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
-DURATION = float(NUMBER_OF_FRAMES - START_FRAME) / float(FPS)
+DURATION = float(NUMBER_OF_FRAMES / FPS)
 TEXT_START_POS_Y = 30
 CSV_DIR = 'csv_results/%s.csv'
+GT_DIR = 'Jerico1GT.mp4'
+GT_VIDEO = cv2.VideoCapture(GT_DIR)
+GT_CSV = './csv_raw/Jerico1GT.mp4.csv'
+
+# Global constants for calculations (all times are in seconds).
+MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.7
+BREATHS_MODE = True
+MIN_FLOW_THRESHOLD = 0.33
+SCALE = 0.33
+LEARNING_RATE = 0.0075
+MIN_RESULTANT = 5000
+MIN_BREATHING_MOVEMENT = 10000
+MIN_MOVEMENT_PCG = 20
+AVERAGING_TIME = 0.2
+AVERAGING_FRAMES = int(AVERAGING_TIME * FPS)
 
 
 def plot_data(data):
@@ -30,13 +43,13 @@ def plot_data(data):
     frames = list(range(0, len(data)))
     time_in_seconds = [(i / FPS) for i in frames]
     movement = [coord[0] for coord in data]
-    max_min = [coord[0] if coord[3] else None for coord in data]
+    compressions = [coord[0] if coord[3] == "Compression" else None for coord in data]
     plt.plot(time_in_seconds, movement)
-    plt.plot(time_in_seconds, max_min, "x")
-    plt.legend(["Optical Flow", "Detected Compression"])
+    plt.plot(time_in_seconds, compressions, "x")
+    plt.legend(["Optical Flow", "Detected Compression (N=%i)" % len([c for c in compressions if c])])
     plt.ylabel('Resultant Vertical Displacement (Pixels)')
     plt.xlabel('Time (Seconds)')
-    plt.axis([0, time_in_seconds[-1], -5000, 5000])
+    plt.axis([0, time_in_seconds[-1], -2000, 2000])
     plt.show()
 
 
@@ -44,14 +57,14 @@ def read_from_csv(csv_file):
     """ Reads data from a CSV file. """
 
     print("Reading from CSV file...")
-    coords = []
+    data = []
 
     reader = csv.reader(csv_file, delimiter=',')
     for row in reader:
-        coords.append((float(row[0])/ 100, float(row[1])/ 100, row[2], row[3] if row[3] != 'None' else None))
+        data.append((float(row[0])/ 100, float(row[1])/ 100, row[2], row[3] if row[3] != 'None' else None))
 
-    print("Reading from CSV file complete! %i co-ordinates read." % len(coords))
-    return coords
+    print("Reading from CSV file complete! %i co-ordinates read." % len(data))
+    return data
 
 
 def write_to_csv(data):
@@ -80,8 +93,9 @@ def write_to_csv(data):
 
 
 def process_video():
+    """ The core logic of this dissertation's solution - process the video to detect compressions. """
 
-    # Initial values.
+    # Initial values for use in calculations and output.
     (ret, current_frame_bgr) = VIDEO.read()
     print("ORIGINAL RESOLUTION: %ix%i" % (len(current_frame_bgr[0]), len(current_frame_bgr)))
     print("DURATION IN SECONDS: %f" % DURATION)
@@ -89,7 +103,6 @@ def process_video():
     current_frame_bgr = cv2.resize(current_frame_bgr, (0, 0), fx=SCALE, fy=SCALE) 
     hsv = np.zeros_like(current_frame_bgr)
     hsv[...,1] = 255
-    compressions = 0
     current_frame_gray = cv2.cvtColor(current_frame_bgr,cv2.COLOR_BGR2GRAY)
     prev_frame_bgr = np.array([])
     weights = np.zeros_like(current_frame_bgr[..., 0])
@@ -98,20 +111,23 @@ def process_video():
     weights_hsv[..., 1] = 0
     weights_hsv[..., 0] = 0
     prev_compression_time = None
-    prev_resultant = 0
+    is_breathing = False
     elapsed_time = 0
-    ccr = 0
-    mean_ccr = 0
-    ccr_data = np.array([])
-    print("PROCESSED RESOLUTION: %ix%i" % (len(current_frame_bgr[0]), len(current_frame_bgr)))
-    total_pixels = len(current_frame_bgr[0]) * len(current_frame_bgr)
-    print("TOTAL PIXELS: %i" % total_pixels)
     strong_downward_movement_detected = False
     upward_movement_detected_within_allowed_time = False
     strong_downward_movement_time = 0
     time_diff = 0
-
     data = []
+
+    # Initial compression/CCR values.
+    compressions = 0
+    ccr = 0
+    mean_ccr = 0
+    ccr_data = np.array([])
+
+    print("PROCESSED RESOLUTION: %ix%i" % (len(current_frame_bgr[0]), len(current_frame_bgr)))
+    total_pixels = len(current_frame_bgr[0]) * len(current_frame_bgr)
+    print("TOTAL PIXELS: %i" % total_pixels)
 
     # Processing loop.
     while True:
@@ -119,82 +135,127 @@ def process_video():
             (ret, current_frame_bgr) = VIDEO.read()
             current_frame_number = VIDEO.get(cv2.CAP_PROP_POS_FRAMES)
 
-            if current_frame_bgr is None:
+            if ret == False:
                 break
 
-            # Pre-processing to eliminate noise.
+            # Pre-processing to reduce noise.
             current_frame_bgr = cv2.resize(current_frame_bgr, (0, 0), fx=SCALE, fy=SCALE)
             current_frame_bgr = cv2.blur(current_frame_bgr, (1, 1))
 
             # Dense optical flow.
             prev_frame_gray = cv2.cvtColor(prev_frame_bgr, cv2.COLOR_BGR2GRAY)
             current_frame_gray = cv2.cvtColor(current_frame_bgr, cv2.COLOR_BGR2GRAY)
-
             flow = cv2.calcOpticalFlowFarneback(prev=prev_frame_gray, next=current_frame_gray, flow=None, pyr_scale=0.5, levels=3, winsize=25, iterations=1, poly_n=5, poly_sigma=1.2, flags=0)
             magnitude, direction = cv2.cartToPolar(flow[...,0], flow[...,1])
             direction_in_deg = direction *  (180 / np.pi)
 
-            # Apply thresholding.
+            # Apply thresholding to reduce noisy pixels. 
             np.place(magnitude, magnitude < MIN_FLOW_THRESHOLD, 0)
-            downward_movement_mask = np.zeros_like(magnitude)
+            
+            # Isolate upward movements for detecting compressions. UP = 90deg.
             upward_movement_mask = np.zeros_like(magnitude)
-
-            # Isolate downward movements.
-            np.place(downward_movement_mask, np.logical_and(direction_in_deg > 190, direction_in_deg < 350), 1)
-            downward_movement = np.multiply(magnitude, downward_movement_mask)
-            downward_movement = np.multiply(downward_movement, weights_mask)
-            downward_sum = np.sum(downward_movement)
-
-            # Isolate upward movements.
-            np.place(upward_movement_mask, np.logical_and(direction_in_deg > 10, direction_in_deg < 170), 1)
+            np.place(upward_movement_mask, np.logical_and(direction_in_deg > 45, direction_in_deg < 135), 1)
             upward_movement = cv2.bitwise_and(magnitude, magnitude, mask=upward_movement_mask.astype(np.int8))
             upward_movement = np.multiply(upward_movement, weights_mask)
             upward_sum = np.sum(upward_movement)
 
-            total_movement_pcg = (np.sum(np.where(downward_movement > 0)[0]) + np.sum(np.where(upward_movement > 0)[0])) / total_pixels
-            vertical_resultant = upward_sum - downward_sum
-            state = None
+            # Isolate downward movements for detecting compressions. DOWN = 270deg.
+            downward_movement_mask = np.zeros_like(magnitude)
+            np.place(downward_movement_mask, np.logical_and(direction_in_deg > 225, direction_in_deg < 315), 1)
+            downward_movement = cv2.bitwise_and(magnitude, magnitude, mask=downward_movement_mask.astype(np.int8))
+            downward_movement = np.multiply(downward_movement, weights_mask)
+            downward_sum = np.sum(downward_movement)
 
-            if current_frame_number >= START_FRAME or WEBCAM_MODE:
+            # Isolate leftward movements for detecting breaths. LEFT = 180deg.
+            leftward_movement_mask = np.zeros_like(magnitude)
+            np.place(leftward_movement_mask, np.logical_and(direction_in_deg >= 170, direction_in_deg <= 190), 1)
+            leftward_movement = cv2.bitwise_and(magnitude, magnitude, mask=leftward_movement_mask.astype(np.int8))
+            leftward_movement = np.multiply(leftward_movement, weights_mask)
+            leftward_sum = np.sum(leftward_movement)
 
-                # Calculate weights for isolation of zone with high movement density.
-                if compressions > 0:
-                    old_weights = weights * (1 - LEARNING_RATE)
-                    temp = (magnitude * LEARNING_RATE)
-                    weights = np.add(old_weights, temp)
-                    weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
-                    weights_mask = weights
+            # Isolate rightward movements for detecting breaths. RIGHT = 0 or 360deg.
+            rightward_movement_mask = np.zeros_like(magnitude)
+            np.place(rightward_movement_mask, np.logical_or(direction_in_deg <= 10, direction_in_deg >= 350), 1)
+            rightward_movement = cv2.bitwise_and(magnitude, magnitude, mask=rightward_movement_mask.astype(np.int8))
+            rightward_movement = np.multiply(rightward_movement, weights_mask)
+            rightward_sum = np.sum(rightward_movement)
 
-                # Elapsed time from starting frame for calculating CCR.
-                elapsed_time = float((current_frame_number - START_FRAME) / FPS)
+            # Isolate lateral movements as a whole for visualisation.
+            lateral_movement_mask = cv2.bitwise_or(leftward_movement_mask, rightward_movement_mask)
+            lateral_movement = np.multiply(magnitude, lateral_movement_mask)
+            lateral_sum = leftward_sum + rightward_sum
 
-                # Compression detection.
-                if not strong_downward_movement_detected and vertical_resultant < -5000 and total_movement_pcg > 20:
-                    strong_downward_movement_detected = True
-                    strong_downward_movement_time = elapsed_time
-                elif strong_downward_movement_detected and vertical_resultant > 5000 and total_movement_pcg > 20 and (elapsed_time - strong_downward_movement_time) <= MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
-                    upward_movement_detected_within_allowed_time = True
-                elif strong_downward_movement_detected and (elapsed_time - strong_downward_movement_time) > MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
-                    strong_downward_movement_detected = False
+            # Outputs of calculations.
+            total_movement_pcg = (np.sum(np.where(magnitude > 0)[0])) / total_pixels
 
-                if strong_downward_movement_detected and upward_movement_detected_within_allowed_time:
-                    upward_movement_detected_within_allowed_time = False
-                    strong_downward_movement_detected = False
-                    compressions += 1
-                    state = "Compression"
+            if is_breathing:
+                state = None
 
-                    # CCR is calculated as the time difference to complete two compressions, measured in BPM.
-                    if prev_compression_time:
-                        time_diff = elapsed_time - prev_compression_time
-                        ccr = 60 / time_diff
-                        ccr_data = np.append(ccr_data, ccr)
-                        mean_ccr = np.mean(ccr_data)
+            # Compute average motion over N previous frames, where N = AVERAGING_FRAMES.
+            last_n_frames = data[-(AVERAGING_FRAMES):]          
+            upward_avg = np.mean([frame[1] for frame in last_n_frames]) if data else 0
+            downward_avg = np.mean([frame[2] for frame in last_n_frames]) if data else 0
+            leftward_avg = np.mean([frame[5] for frame in last_n_frames]) if data else 0
+            rightward_avg = np.mean([frame[6] for frame in last_n_frames]) if data else 0
 
-                    prev_compression_time = elapsed_time
+            # Calculate weights for isolation of zone with high movement density.
+            lateral_avg = leftward_avg + rightward_avg
+            if lateral_avg > MIN_BREATHING_MOVEMENT or is_breathing:
+                is_breathing = True
+                state = "Breaths"
 
-                data.append([vertical_resultant, mean_ccr, int(total_movement_pcg), state])
+            if compressions > 0 and not is_breathing:
+                old_weights = weights * (1 - LEARNING_RATE)
+                temp = (magnitude * LEARNING_RATE)
+                weights = np.add(old_weights, temp)
+                weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
+                weights_mask = weights
 
-                # Outputs.
+            # Vertical resultant using averages for detecting compressions.
+            vertical_resultant = upward_avg - downward_avg
+
+            # Elapsed time from starting frame for calculating CCR.
+            elapsed_time = float(current_frame_number / FPS)
+
+
+            # COMPRESSION DETECTION.
+            # 1. Detect a strong downward movement in the previous 200ms.
+            # 2. If a strong downward movement is detected, try to detect a strong upward movement in the following 200ms.
+            #    The strong upward movement must be detected within 500ms from the point in time when the strong downward movement was last detected.
+            # 3. If these conditions are met, then a compression is detected by this algorithm.
+            #    Otherwise, the downward movement is set back to False.
+
+            if not strong_downward_movement_detected and vertical_resultant < -(MIN_RESULTANT) and total_movement_pcg > MIN_MOVEMENT_PCG:
+                strong_downward_movement_detected = True
+                strong_downward_movement_time = elapsed_time
+            elif strong_downward_movement_detected and vertical_resultant > MIN_RESULTANT and total_movement_pcg > MIN_MOVEMENT_PCG and (elapsed_time - strong_downward_movement_time) <= MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
+                upward_movement_detected_within_allowed_time = True
+            elif strong_downward_movement_detected and (elapsed_time - strong_downward_movement_time) > MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
+                strong_downward_movement_detected = False
+
+            if strong_downward_movement_detected and upward_movement_detected_within_allowed_time:
+                upward_movement_detected_within_allowed_time = False
+                strong_downward_movement_detected = False
+                compressions += 1
+                state = "Compression"
+                is_breathing = False
+
+                # CCR is calculated as the time difference to complete two compressions, measured in BPM.
+                if prev_compression_time:
+                    time_diff = elapsed_time - prev_compression_time
+                    ccr = 60 / time_diff
+                    ccr_data = np.append(ccr_data, ccr)
+                    mean_ccr = np.mean(ccr_data)
+
+                prev_compression_time = elapsed_time
+
+
+            print("%s[%i] (%ipc) VERT_R: %i %s" % ("----CCR: %f at %fs----" % (ccr, elapsed_time) if state else '', current_frame_number, total_movement_pcg, vertical_resultant, (", TDIFF: %f" % time_diff) if state == "Compression" else ""))
+            data.append([vertical_resultant, int(upward_sum), int(downward_sum), state, int(total_movement_pcg), int(leftward_sum), int(rightward_sum)])
+
+
+            # Show output windows for visualization.
+            if SHOW_OUTPUT:
                 hsv[..., 0] = cv2.normalize(direction_in_deg, None, 0, 179, cv2.NORM_MINMAX)
                 hsv[..., 2] = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)
                 flow_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
@@ -205,16 +266,18 @@ def process_video():
                 hsv[..., 2] = cv2.normalize(downward_movement, None, 0, 255, cv2.NORM_MINMAX)      
                 flow_down_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
+                hsv[..., 2] = cv2.normalize(lateral_movement, None, 0, 255, cv2.NORM_MINMAX)      
+                flow_lateral_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
                 weights_hsv[..., 2] = cv2.normalize(weights_mask, None, 0, 255, cv2.NORM_MINMAX)
                 weights_bgr = cv2.cvtColor(weights_hsv, cv2.COLOR_HSV2BGR)
 
-                print("%s[%i] UP: %i, DOWN: %i, RSLT: %i (%ipc) %s" % ("----CCR: %f at %fs----" % (ccr, elapsed_time) if state else '', current_frame_number, upward_sum, downward_sum, vertical_resultant, total_movement_pcg, (", TIMEDIFF: %f" % time_diff) if state else ""))
 
                 cv2.putText(flow_bgr, "Time: %f" % elapsed_time, (25, TEXT_START_POS_Y), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
                 cv2.putText(flow_bgr, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                cv2.putText(flow_bgr, "AVGCCR: %fbpm" % mean_ccr, (25, TEXT_START_POS_Y + 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "S: %s" % (state), (25, TEXT_START_POS_Y + 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
                 cv2.putText(flow_bgr, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 90), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                cv2.putText(flow_bgr, "TIMEDIFF: %f" % time_diff, (25, TEXT_START_POS_Y + 120), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "TDIFF: %f" % time_diff, (25, TEXT_START_POS_Y + 120), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
                 cv2.namedWindow('Video', cv2.WINDOW_NORMAL)
                 cv2.namedWindow('Flow (All)', cv2.WINDOW_NORMAL)
                 cv2.namedWindow('Flow (Upward)', cv2.WINDOW_NORMAL)
@@ -224,12 +287,11 @@ def process_video():
                 cv2.imshow('Flow (All)', flow_bgr)
                 cv2.imshow('Flow (Upward)', flow_up_bgr)
                 cv2.imshow('Flow (Downward)', flow_down_bgr)
+                cv2.imshow('Flow (Lateral)', flow_lateral_bgr)
                 cv2.imshow('Weighted Mask', weights_bgr)
                 k = cv2.waitKey(30) & 0xff
                 if k == 27:
                     break
-
-                prev_resultant = vertical_resultant
 
         prev_frame_bgr = current_frame_bgr
 
