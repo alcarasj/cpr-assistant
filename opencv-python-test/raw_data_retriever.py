@@ -20,14 +20,16 @@ args = parser.parse_args()
 
 INPUT_VIDEO = args.input
 VIDEO_CAPTURE = cv2.VideoCapture(INPUT_VIDEO)
+FPS = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_FPS))
 TOTAL_FRAMES = VIDEO_CAPTURE.get(cv2.CAP_PROP_FRAME_COUNT)
 OVERWRITE_CSV = args.overwrite_csv
 START_FRAME = args.start_frame
+CALCULATE_MAXIMUMS = False
 VIDEO_OUTPUT = args.video_output
 DEBUG_MODE = args.debug_mode
 CSV_RAW_DIR = 'csv_raw/%s.csv'
-COMPRESSION_BOUNDS = (1275, 1325)
-FPS = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_FPS))
+COMPRESSION_BOUNDS = (560, 600)
+print("FPS: %i" % FPS)
 
 
 
@@ -56,8 +58,8 @@ def get_maximums(data):
 
 	coords = data
 	prev_y_value = 0
-	last_max_index = 0
-	prev_index = 0
+	index_of_maximum = 0
+	prev_max_index = 0
 	maximum = 0
 	compressions = 0
 	ccr = 0
@@ -68,21 +70,20 @@ def get_maximums(data):
 		if index > START_FRAME and current_y_value:
 			if current_y_value > prev_y_value:
 				maximum = current_y_value
-				last_max_index = index
+				index_of_maximum = index
 
-			if current_y_value < prev_y_value and prev_y_value == maximum and COMPRESSION_BOUNDS[0] < prev_y_value and prev_y_value < COMPRESSION_BOUNDS[1]:
-
+			if current_y_value < prev_y_value and prev_y_value == maximum and COMPRESSION_BOUNDS[0] < prev_y_value and prev_y_value < COMPRESSION_BOUNDS[1]: 
 				elapsed_time = float((index - START_FRAME) / FPS)
-				prev_value = data[last_max_index]
-				data[last_max_index] = (prev_value[0], prev_value[1], prev_value[2], "Compression")
+				prev_value = data[index_of_maximum]
+				data[index_of_maximum] = (prev_value[0], prev_value[1], prev_value[2], "Compression")
 				compressions += 1
 				if prev_compression_time:
 					time_diff = elapsed_time - prev_compression_time
 					ccr = 60 / time_diff
+					prev_max_index = index_of_maximum
 				prev_compression_time = elapsed_time
 				print("[%i] Nc: %i, CCR: %i" % (index, compressions, ccr))
 			prev_y_value = current_y_value
-			prev_index = index
 		data[index] = (value[0], value[1], value[2], None)
 
 	return data
@@ -174,7 +175,7 @@ def get_raw_data():
 		in_valid_frame = (frame_number <= TOTAL_FRAMES) and (ret == True)
 
 		if in_valid_frame:
-			frame = imutils.rotate_bound(frame, 270)
+			frame = imutils.rotate_bound(frame, 90)
 			frame = cv2.medianBlur(frame, 5)
 
 			# HSV for brightness value to determine start of compressions.
@@ -188,7 +189,7 @@ def get_raw_data():
 
 			# Hough circle transform to detect circles.
 			grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-			circles = cv2.HoughCircles(grayscale, cv2.HOUGH_GRADIENT, 1, 20, param1=200, param2=30, minRadius=30, maxRadius=45)
+			circles = cv2.HoughCircles(grayscale, cv2.HOUGH_GRADIENT, 1, 20, param1=200, param2=30, minRadius=35, maxRadius=40)
 
 			if (circles is not None) and (len(circles) == 1):
 				circles = np.uint16(np.around(circles))
@@ -224,15 +225,15 @@ def main():
 		existing_csv = open(CSV_RAW_DIR % INPUT_VIDEO)
 		if OVERWRITE_CSV:
 			raw_data = get_raw_data()
-			data = get_maximums(raw_data)
+			data = get_maximums(raw_data) if CALCULATE_MAXIMUMS else raw_data
 			write_to_csv(data)
 		else:
 			raw_data = read_from_csv(existing_csv)
-			data = get_maximums(raw_data)
+			data = get_maximums(raw_data) if CALCULATE_MAXIMUMS else raw_data
 			write_to_csv(data)
 	except FileNotFoundError:
 		raw_data = get_raw_data()
-		data = get_maximums(raw_data)
+		data = get_maximums(raw_data) if CALCULATE_MAXIMUMS else raw_data
 		write_to_csv(data)
 
 	plot_data(data)

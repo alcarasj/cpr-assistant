@@ -9,13 +9,12 @@ import matplotlib.pyplot as plt
 
 WEBCAM_MODE = False
 READ_ONLY = False
-INPUT_VIDEO = 'Ken1BUV.mp4'
+INPUT_VIDEO = 'Jerico2BUV.mp4'
 MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.5
-STRIDE = 8
 MIN_FLOW_THRESHOLD = 0.5
-START_FRAME = 146
+START_FRAME = 0
 SCALE = 0.33
-LEARNING_RATE = 0.005
+LEARNING_RATE = 0.0075
 VIDEO = cv2.VideoCapture(0 if WEBCAM_MODE else INPUT_VIDEO)
 FPS = int(VIDEO.get(cv2.CAP_PROP_FPS))
 NUMBER_OF_FRAMES = float(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -169,10 +168,10 @@ def process_video():
                 elapsed_time = float((current_frame_number - START_FRAME) / FPS)
 
                 # Compression detection.
-                if not strong_downward_movement_detected and vertical_resultant < -8000 and total_movement_pcg > 30:
+                if not strong_downward_movement_detected and vertical_resultant < -5000 and total_movement_pcg > 20:
                     strong_downward_movement_detected = True
                     strong_downward_movement_time = elapsed_time
-                elif strong_downward_movement_detected and vertical_resultant > 8000 and total_movement_pcg > 30 and (elapsed_time - strong_downward_movement_time) <= MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
+                elif strong_downward_movement_detected and vertical_resultant > 5000 and total_movement_pcg > 20 and (elapsed_time - strong_downward_movement_time) <= MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
                     upward_movement_detected_within_allowed_time = True
                 elif strong_downward_movement_detected and (elapsed_time - strong_downward_movement_time) > MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
                     strong_downward_movement_detected = False

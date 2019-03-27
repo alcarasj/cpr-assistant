@@ -7,10 +7,9 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
-CSV_DIR = "./csv_raw/Ken1FCSV.mp4FINAL.csv"
-#CSV_DIR = "./csv_results/Ken1BUV.mp4FINAL.csv"
-FPS = 13
-
+#CSV_DIR = "./csv_raw/Jerico1GT.mp4.csv"
+CSV_DIR = "./csv_results/Jerico2BUV.mp4.csv"
+FPS = 30
 
 def read_from_csv(csv_file):
     """ Reads data from a CSV file. """
@@ -38,13 +37,13 @@ def evaluate_ccr(data):
 
 		elapsed_time = float(datapoint[0] / FPS)
 
-		if datapoint[1] == "Compression":
+		if datapoint[1] == "Compression" or datapoint[1] == "Maximum":
 			compressions += 1
 			if prev_compression_time:
 				time_diff = elapsed_time - prev_compression_time
 				ccr = 60 / time_diff
 				ccr_data = np.append(ccr_data, ccr)
-				print("[%i] Nc: %i, CCR: %f, MEAN: %f, TIMEDIFF: %f" % (datapoint[0], compressions, ccr, np.mean(ccr_data), time_diff))
+				print("[%i: %f] Nc: %i, CCR: %f, MEAN: %f, TIMEDIFF: %f" % (datapoint[0], elapsed_time, compressions, ccr, np.mean(ccr_data), time_diff))
 			prev_compression_time = elapsed_time
 
 

@@ -6,7 +6,7 @@ import numpy as np
 cap = cv2.VideoCapture('Ken1BUV.mp4')
 TOTAL_FRAMES = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 FPS = float(cap.get(cv2.CAP_PROP_FPS))
-START_FRAME = 0
+START_FRAME = 146
 START_DURATION = START_FRAME / FPS
 
 
