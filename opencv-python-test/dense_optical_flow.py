@@ -8,10 +8,10 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 WEBCAM_MODE = False
-READ_ONLY = False
+READ_ONLY = True
 INPUT_VIDEO = 'Jerico2BUV.mp4'
 MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.5
-MIN_FLOW_THRESHOLD = 0.5
+MIN_FLOW_THRESHOLD = 0.33
 START_FRAME = 0
 SCALE = 0.33
 LEARNING_RATE = 0.0075
@@ -24,18 +24,19 @@ CSV_DIR = 'csv_results/%s.csv'
 
 
 def plot_data(data):
-    """ Plots the raw data (x, y) data into a graph. """
+    """ Plots data on a graph. """
 
     print("Plotting data...")
-    frames = list(range(1, len(data) + 1))
+    frames = list(range(0, len(data)))
+    time_in_seconds = [(i / FPS) for i in frames]
     movement = [coord[0] for coord in data]
     max_min = [coord[0] if coord[3] else None for coord in data]
-    plt.plot(frames, movement)
-    plt.plot(frames, max_min, "x")
+    plt.plot(time_in_seconds, movement)
+    plt.plot(time_in_seconds, max_min, "x")
     plt.legend(["Optical Flow", "Detected Compression"])
     plt.ylabel('Resultant Vertical Displacement (Pixels)')
-    plt.xlabel('Frame')
-    plt.axis([0, len(data) * 1.5, -5000, 5000])
+    plt.xlabel('Time (Seconds)')
+    plt.axis([0, time_in_seconds[-1], -5000, 5000])
     plt.show()
 
 

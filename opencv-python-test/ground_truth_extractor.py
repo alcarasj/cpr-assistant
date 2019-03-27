@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 
 parser = ArgumentParser(description='Raw data retriever for CPR assistant test videos.')
 parser.add_argument('-i', '--input', dest='input', help='Relative path to the input video file.', type=str, required=True)
-parser.add_argument('-s', '--start-frame', dest='start_frame', help='The frame number of the start of compressions.', type=int, required=True)
 parser.add_argument('-o', '--overwrite-csv', dest='overwrite_csv', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV if enabled).', type=bool, required=False, default=False)
 parser.add_argument('-v', '--video-output', dest='video_output', help='Show video output.', type=bool, required=False, default=False)
 parser.add_argument('-d', '--debug-mode', dest='debug_mode', help='Debug mode for iterating frame-by-frame.', type=bool, required=False, default=False)
@@ -23,8 +22,7 @@ VIDEO_CAPTURE = cv2.VideoCapture(INPUT_VIDEO)
 FPS = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_FPS))
 TOTAL_FRAMES = VIDEO_CAPTURE.get(cv2.CAP_PROP_FRAME_COUNT)
 OVERWRITE_CSV = args.overwrite_csv
-START_FRAME = args.start_frame
-CALCULATE_MAXIMUMS = False
+CALCULATE_MAXIMUMS = False or OVERWRITE_CSV 
 VIDEO_OUTPUT = args.video_output
 DEBUG_MODE = args.debug_mode
 CSV_RAW_DIR = 'csv_raw/%s.csv'
@@ -33,11 +31,10 @@ print("FPS: %i" % FPS)
 
 
 
-def show_output(frame, frame_number, y_value, avg_value):
+def show_output(frame, frame_number, y_value):
 	""" Shows the video output in a window. """
 
-	cv2.putText(frame, "Frame: %i" % frame_number, (150,200), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
-	cv2.putText(frame, "Value: %i" % avg_value, (150, 250), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
+	cv2.putText(frame, "Frame: %i" % frame_number, (150, 200), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
 	cv2.putText(frame, "Y: %s" % str(y_value), (150, 300), cv2.FONT_HERSHEY_SIMPLEX, 2, 255, thickness=5)
 	cv2.namedWindow('Output', cv2.WINDOW_NORMAL)
 	cv2.resizeWindow('Output', 800, 800)
@@ -67,13 +64,13 @@ def get_maximums(data):
 
 	for index, value in enumerate(coords):
 		current_y_value = value[1]
-		if index > START_FRAME and current_y_value:
+		if current_y_value:
 			if current_y_value > prev_y_value:
 				maximum = current_y_value
 				index_of_maximum = index
 
 			if current_y_value < prev_y_value and prev_y_value == maximum and COMPRESSION_BOUNDS[0] < prev_y_value and prev_y_value < COMPRESSION_BOUNDS[1]: 
-				elapsed_time = float((index - START_FRAME) / FPS)
+				elapsed_time = float(index / FPS)
 				prev_value = data[index_of_maximum]
 				data[index_of_maximum] = (prev_value[0], prev_value[1], prev_value[2], "Compression")
 				compressions += 1
@@ -92,7 +89,7 @@ def get_maximums(data):
 
 
 def write_to_csv(data):
-	""" Writes the raw data (x, y) data into a CSV file. """
+	""" Writes the raw data (x, y) into a CSV file. """
 	
 	print("Writing to CSV file...")
 
@@ -146,8 +143,8 @@ def plot_data(data):
 	frames = list(range(1, len(data) + 1))
 	y_coords = [coord[1] for coord in data]
 	max_min = [coord[1] if coord[3] == "Compression" else None for coord in data]
-	plt.plot(frames, y_coords)
-	plt.plot(frames, max_min, "x")
+	plt.plot(frames, y_coords, 'b')
+	plt.plot(frames, max_min, "r*")
 	plt.ylabel('Y-Coordinates of Hough Circle Transform')
 	plt.xlabel('Frame')
 	plt.legend(['Ground Truth', 'Compression'])
@@ -178,15 +175,6 @@ def get_raw_data():
 			frame = imutils.rotate_bound(frame, 90)
 			frame = cv2.medianBlur(frame, 5)
 
-			# HSV for brightness value to determine start of compressions.
-			hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-			# Mean value of frame.
-			avg_value = int(cv2.mean(hsv)[0])
-
-			# Print values per frame.
-			# print("[%i] - %i" % (frame_number, avg_value))
-
 			# Hough circle transform to detect circles.
 			grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 			circles = cv2.HoughCircles(grayscale, cv2.HOUGH_GRADIENT, 1, 20, param1=200, param2=30, minRadius=35, maxRadius=40)
@@ -194,17 +182,17 @@ def get_raw_data():
 			if (circles is not None) and (len(circles) == 1):
 				circles = np.uint16(np.around(circles))
 				ball = circles[0][0]
-				coord = (ball[0], ball[1], avg_value)
+				coord = (ball[0], ball[1], None)
 				# draw the outer circle
 				cv2.circle(frame, (ball[0], ball[1]), ball[2], (0,255,0), 2)
 				# draw the center of the circle
 				cv2.circle(frame, (ball[0], ball[1]), 2, (0,0,255), 3)
 			else: 
-				coord = (None, None, avg_value, None)
+				coord = (None, None, None, None)
 
 			circle_coords.append(coord)
 			if VIDEO_OUTPUT:
-				show_output(frame, frame_number, coord[1], avg_value)
+				show_output(frame, frame_number, coord[1])
 			prev_y_value = coord[1]
 		else:
 			complete = True
