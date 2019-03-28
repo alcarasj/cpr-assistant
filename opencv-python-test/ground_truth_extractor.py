@@ -22,11 +22,13 @@ VIDEO_CAPTURE = cv2.VideoCapture(INPUT_VIDEO)
 FPS = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_FPS))
 TOTAL_FRAMES = VIDEO_CAPTURE.get(cv2.CAP_PROP_FRAME_COUNT)
 OVERWRITE_CSV = args.overwrite_csv
-CALCULATE_MAXIMUMS = False or OVERWRITE_CSV 
 VIDEO_OUTPUT = args.video_output
 DEBUG_MODE = args.debug_mode
-CSV_RAW_DIR = 'csv_raw/%s.csv'
-COMPRESSION_BOUNDS = (560, 600)
+CSV_GT_DIR = 'csv_gt/%s.csv'
+
+COMPRESSION_BOUNDS = (885, 910)
+CALCULATE_MAXIMUMS = True or OVERWRITE_CSV 
+GRAPH_AGAINST_TIME = False
 print("FPS: %i" % FPS)
 
 
@@ -51,13 +53,12 @@ def get_compressions(data):
 	""" 
 	Reads the raw data and gets the compressions.
 	A local maximum detected within the bounds defined in COMPRESSION_BOUNDS is a compression.
-	The accuracy of this method must be verified manually as there may be false positives.
+	The accuracy of this method must be verified manually as there may be false positives/negatives.
 	"""
 
 	coords = data
 	prev_y_value = 0
 	index_of_maximum = 0
-	prev_max_index = 0
 	maximum = 0
 	compressions = 0
 	ccr = 0
@@ -72,13 +73,12 @@ def get_compressions(data):
 
 			if current_y_value < prev_y_value and prev_y_value == maximum and COMPRESSION_BOUNDS[0] < prev_y_value and prev_y_value < COMPRESSION_BOUNDS[1]: 
 				elapsed_time = float(index / FPS)
-				prev_value = data[index_of_maximum]
-				data[index_of_maximum] = (prev_value[0], prev_value[1], prev_value[2], "Compression")
+				temp = data[index_of_maximum]
+				data[index_of_maximum] = [temp[0], temp[1], temp[2], "Compression"]
 				compressions += 1
 				if prev_compression_time:
 					time_diff = elapsed_time - prev_compression_time
 					ccr = 60 / time_diff
-					prev_max_index = index_of_maximum
 				prev_compression_time = elapsed_time
 				print("[%i] Nc: %i, CCR: %i" % (index, compressions, ccr))
 			prev_y_value = current_y_value
@@ -94,15 +94,15 @@ def write_to_csv(data):
 	
 	print("Writing to CSV file...")
 
-	if os.path.exists(CSV_RAW_DIR % INPUT_VIDEO):
-		os.remove(CSV_RAW_DIR % INPUT_VIDEO)
+	if os.path.exists(CSV_GT_DIR % INPUT_VIDEO):
+		os.remove(CSV_GT_DIR % INPUT_VIDEO)
 
 	try:
 	    os.stat('csv_raw')
 	except:
 	    os.mkdir('csv_raw')
 	
-	csv_file = open(CSV_RAW_DIR % INPUT_VIDEO, mode='w')
+	csv_file = open(CSV_GT_DIR % INPUT_VIDEO, mode='w')
 	writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 	row_count = 0
 
@@ -128,9 +128,9 @@ def read_from_csv(csv_file):
 	reader = csv.reader(csv_file, delimiter=',')
 	for row in reader:
 		if row[0] == '-' and row[1] == '-':
-			circle_coords.append((None, None, row[2], None))
+			circle_coords.append([None, None, row[2], None])
 		else:
- 			circle_coords.append((row[0], int(row[1]), row[2], row[3] if row[3] != 'None' else None))
+ 			circle_coords.append([row[0], int(row[1]), row[2], row[3] if row[3] != 'None' else None])
 
 	print("Reading from CSV file complete! %i co-ordinates read." % len(circle_coords))
 	return circle_coords
@@ -141,15 +141,19 @@ def plot_data(data):
 	""" Plots the raw data (x, y) data into a graph. """
 
 	print("Plotting data...")
-	frames = list(range(1, len(data) + 1))
-	y_coords = [coord[1] for coord in data]
-	max_min = [coord[1] if coord[3] == "Compression" else None for coord in data]
-	plt.plot(frames, y_coords, 'b')
-	plt.plot(frames, max_min, "r*")
+	frames = list(range(0, len(data)))
+	if GRAPH_AGAINST_TIME:
+		frames = [(i / FPS) for i in frames]
+	y_coords = [coord[1] if not coord[3] or coord[3] == "Compression" else None for coord in data]
+	compressions = [coord[1] if coord[3] == "Compression" else None for coord in data]
+	breathing = [coord[1] if coord[3] == "Breathing" or coord[3] == "Compression" else None for coord in data]
+	plt.plot(frames, y_coords, 'b-')
+	plt.plot(frames, breathing, "b:")
+	plt.plot(frames, compressions, "c*")
 	plt.ylabel('Y-Coordinates of Detected Ball')
-	plt.xlabel('Frame')
-	plt.legend(['Ground Truth', 'Compression'])
-	plt.axis([0, len(data), 0, 2000])
+	plt.xlabel('Time (Seconds)' if GRAPH_AGAINST_TIME else 'Frame Number')
+	plt.legend(['Ground Truth', 'Ground Truth (Breathing)', 'True Compression (N=%i)' % len([c for c in compressions if c])])
+	plt.axis([0, frames[-1], 0, 1000])
 	plt.show()
 
 
@@ -157,7 +161,7 @@ def plot_data(data):
 def get_raw_data():
 	"""
 	Reads the input video file and uses Hough circle transform to 
-	retrieve raw in the form of (x, y) co-ordinates.
+	detect the ball and its position.
 	"""
 
 
@@ -170,26 +174,24 @@ def get_raw_data():
 		(ret, frame) = VIDEO_CAPTURE.read()
 		frame_number = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_POS_FRAMES))
 
-		in_valid_frame = (frame_number <= TOTAL_FRAMES) and (ret == True)
-
-		if in_valid_frame:
+		if ret == True:
 			frame = imutils.rotate_bound(frame, 90)
 			frame = cv2.medianBlur(frame, 5)
 
 			# Hough circle transform to detect circles.
 			grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-			circles = cv2.HoughCircles(grayscale, cv2.HOUGH_GRADIENT, 1, 20, param1=200, param2=30, minRadius=35, maxRadius=40)
+			circles = cv2.HoughCircles(grayscale, cv2.HOUGH_GRADIENT, 1, 20, param1=200, param2=30, minRadius=20, maxRadius=35)
 
 			if (circles is not None) and (len(circles) == 1):
 				circles = np.uint16(np.around(circles))
 				ball = circles[0][0]
-				coord = (ball[0], ball[1], None)
+				coord = [ball[0], ball[1], None, None]
 				# draw the outer circle
 				cv2.circle(frame, (ball[0], ball[1]), ball[2], (0,255,0), 2)
 				# draw the center of the circle
 				cv2.circle(frame, (ball[0], ball[1]), 2, (0,0,255), 3)
 			else: 
-				coord = (None, None, None, None)
+				coord = [None, None, None, None]
 
 			circle_coords.append(coord)
 			if VIDEO_OUTPUT:
@@ -204,14 +206,13 @@ def get_raw_data():
 	return circle_coords
 
 
-
 def main():
 
 	if OVERWRITE_CSV:
 		print("WARNING: CSV OVERWRITE MODE.")
 
 	try:
-		existing_csv = open(CSV_RAW_DIR % INPUT_VIDEO)
+		existing_csv = open(CSV_GT_DIR % INPUT_VIDEO)
 		if OVERWRITE_CSV:
 			raw_data = get_raw_data()
 			data = get_compressions(raw_data) if CALCULATE_MAXIMUMS else raw_data
