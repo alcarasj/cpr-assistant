@@ -6,9 +6,13 @@ import csv
 import matplotlib 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+from argparse import ArgumentParser
 
+parser = ArgumentParser(description='CCR evaluator for ground truth and solution data.')
+parser.add_argument('-d', '--dataset', dest='dataset', help='The name of the dataset e.g. Jerico1.', type=str, required=True)
+args = parser.parse_args()
 
-DATASET = "Jerico3"
+DATASET = args.dataset
 GT_CSV_DIR = "./csv_gt/%sGT.mp4.csv" % DATASET
 BUV_CSV_DIR = "./csv_results/%sBUV.mp4.csv" % DATASET
 FPS = 30

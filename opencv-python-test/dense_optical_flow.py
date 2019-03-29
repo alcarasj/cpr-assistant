@@ -11,8 +11,8 @@ from argparse import ArgumentParser
 
 parser = ArgumentParser(description='Compressions/breaths detector for CPR using dense optical flow.')
 parser.add_argument('-d', '--dataset', dest='dataset', help='The name of the dataset e.g. Jerico1.', type=str, required=True)
-parser.add_argument('-r', '--recalculate', dest='recalculate', help='Boolean flag to recalculate if there is any existing CSV (also overwrites existing CSV).', type=bool, default=False)
-parser.add_argument('-o', '--output', dest='output', help='Boolean flag to show output windows.', type=bool, default=True)
+parser.add_argument('-r', '--recalculate', dest='recalculate', help='Boolean flag to recalculate if there is any existing CSV (also overwrites existing CSV).', action='store_true')
+parser.add_argument('-o', '--output', dest='output', help='Boolean flag to show output windows.',  action='store_true')
 args = parser.parse_args()
 
 # Script execution configuration constants.
@@ -37,11 +37,11 @@ MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.7
 BREATHS_MODE = True
 MIN_FLOW_THRESHOLD = 0.15
 SCALE = 0.2
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.009
 MIN_RESULTANT = 500
-MIN_BREATHING_MOVEMENT = 1000
+MIN_BREATHING_MOVEMENT = 5000
 MIN_MOVEMENT_PCG = 15
-AVERAGING_TIME = 0.2
+AVERAGING_TIME = 0.15
 AVERAGING_FRAMES = int(AVERAGING_TIME * FPS)
 
 

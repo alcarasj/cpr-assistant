@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 
 parser = ArgumentParser(description='Ground truth data extractor for CPR assistant test videos.')
 parser.add_argument('-i', '--input', dest='input', help='Relative path to the input video file.', type=str, required=True)
-parser.add_argument('-o', '--overwrite-csv', dest='RECALCULATE', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV if enabled).', type=bool, required=False, default=False)
-parser.add_argument('-v', '--video-output', dest='video_output', help='Show video output.', type=bool, required=False, default=False)
-parser.add_argument('-d', '--debug-mode', dest='debug_mode', help='Debug mode for iterating frame-by-frame.', type=bool, required=False, default=False)
+parser.add_argument('-o', '--overwrite-csv', dest='RECALCULATE', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV if enabled).',  action='store_true')
+parser.add_argument('-v', '--video-output', dest='video_output', help='Show video output.', action='store_true')
+parser.add_argument('-d', '--debug-mode', dest='debug_mode', help='Debug mode for iterating frame-by-frame.',  action='store_true')
 args = parser.parse_args()
 
 
