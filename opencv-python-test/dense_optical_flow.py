@@ -35,12 +35,12 @@ GT_CSV_DIR = './csv_gt/' + DATASET + 'GT.mp4.csv'
 # Global constants for calculations (all times are in seconds).
 MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.7
 BREATHS_MODE = True
-MIN_FLOW_THRESHOLD = 0.2
+MIN_FLOW_THRESHOLD = 0.15
 SCALE = 0.2
-LEARNING_RATE = 0.006
+LEARNING_RATE = 0.01
 MIN_RESULTANT = 500
-MIN_BREATHING_MOVEMENT = 5000
-MIN_MOVEMENT_PCG = 20
+MIN_BREATHING_MOVEMENT = 1000
+MIN_MOVEMENT_PCG = 15
 AVERAGING_TIME = 0.2
 AVERAGING_FRAMES = int(AVERAGING_TIME * FPS)
 
@@ -138,7 +138,7 @@ def process_video(ground_truth):
     hsv[...,1] = 255
     current_frame_gray = cv2.cvtColor(current_frame_bgr,cv2.COLOR_BGR2GRAY)
     prev_frame_bgr = np.array([])
-    weights = np.ones_like(current_frame_bgr[..., 0])
+    weights = np.zeros_like(current_frame_bgr[..., 0]) + 0.5
     weights_hsv = np.zeros_like(current_frame_bgr)
     weights_hsv[..., 1] = 0
     weights_hsv[..., 0] = 0
@@ -180,7 +180,16 @@ def process_video(ground_truth):
             # Dense optical flow.
             prev_frame_gray = cv2.cvtColor(prev_frame_bgr, cv2.COLOR_BGR2GRAY)
             current_frame_gray = cv2.cvtColor(current_frame_bgr, cv2.COLOR_BGR2GRAY)
-            flow = cv2.calcOpticalFlowFarneback(prev=prev_frame_gray, next=current_frame_gray, flow=None, pyr_scale=0.5, levels=3, winsize=10, iterations=1, poly_n=3, poly_sigma=1.5, flags=0)
+            flow = cv2.calcOpticalFlowFarneback(prev=prev_frame_gray,
+                                                next=current_frame_gray, 
+                                                flow=None, 
+                                                pyr_scale=0.5, 
+                                                levels=3, 
+                                                winsize=8, 
+                                                iterations=1, 
+                                                poly_n=3,
+                                                poly_sigma=1.1, 
+                                                flags=0)
             magnitude, direction = cv2.cartToPolar(flow[...,0], flow[...,1])
             direction_in_deg = direction *  (180 / np.pi)
 
@@ -203,14 +212,14 @@ def process_video(ground_truth):
 
             # Isolate leftward movements for detecting breaths. LEFT = 180deg.
             leftward_movement_mask = np.zeros_like(magnitude)
-            np.place(leftward_movement_mask, np.logical_and(direction_in_deg >= 170, direction_in_deg <= 190), 1)
+            np.place(leftward_movement_mask, np.logical_and(direction_in_deg >= 160, direction_in_deg <= 200), 1)
             leftward_movement = cv2.bitwise_and(magnitude, magnitude, mask=leftward_movement_mask.astype(np.int8))
             leftward_movement = np.multiply(leftward_movement, weights)
             leftward_sum = np.sum(leftward_movement)
 
             # Isolate rightward movements for detecting breaths. RIGHT = 0 or 360deg.
             rightward_movement_mask = np.zeros_like(magnitude)
-            np.place(rightward_movement_mask, np.logical_or(direction_in_deg <= 10, direction_in_deg >= 350), 1)
+            np.place(rightward_movement_mask, np.logical_or(direction_in_deg <= 20, direction_in_deg >= 340), 1)
             rightward_movement = cv2.bitwise_and(magnitude, magnitude, mask=rightward_movement_mask.astype(np.int8))
             rightward_movement = np.multiply(rightward_movement, weights)
             rightward_sum = np.sum(rightward_movement)
@@ -240,7 +249,7 @@ def process_video(ground_truth):
 
             # If there is large lateral movement observed, it is breathing.
             lateral_avg = leftward_avg + rightward_avg
-            if (lateral_avg > MIN_BREATHING_MOVEMENT or is_breathing) and compressions > 0 and compressions % 10 == 0:
+            if (lateral_avg > MIN_BREATHING_MOVEMENT or is_breathing) and compressions > 10:
                 is_breathing = True
                 state = "Breathing"
 
@@ -275,11 +284,11 @@ def process_video(ground_truth):
 
                 prev_compression_time = elapsed_time
 
-            print("[%i] (%ipc) VERT_R: %i, S: %s" % (current_frame_number, total_movement_pcg, vertical_resultant, state))
+            print("[%i] (%ipc) VRT_R: %i, LAT_R: %i, S: %s" % (current_frame_number, total_movement_pcg, vertical_resultant, lateral_avg, state))
             data.append([vertical_resultant, int(upward_sum), int(downward_sum), state, int(total_movement_pcg), int(leftward_sum), int(rightward_sum)])
 
             # Update weighted masking model.
-            if not is_breathing and compressions > 0:
+            if not is_breathing:
                 old_weights = weights * (1 - LEARNING_RATE)
                 temp = ((downward_movement + upward_movement) * LEARNING_RATE)
                 weights = np.add(old_weights, temp)
@@ -292,10 +301,10 @@ def process_video(ground_truth):
                 hsv[..., 2] = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)
                 flow_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-                hsv[..., 2] = cv2.normalize(upward_movement, None, 0, 255, cv2.NORM_MINMAX)
+                hsv[..., 2] = cv2.normalize(upward_movement_weighted, None, 0, 255, cv2.NORM_MINMAX)
                 flow_up_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-                hsv[..., 2] = cv2.normalize(downward_movement, None, 0, 255, cv2.NORM_MINMAX)      
+                hsv[..., 2] = cv2.normalize(downward_movement_weighted, None, 0, 255, cv2.NORM_MINMAX)      
                 flow_down_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
                 hsv[..., 2] = cv2.normalize(lateral_movement, None, 0, 255, cv2.NORM_MINMAX)      
@@ -314,6 +323,8 @@ def process_video(ground_truth):
                 cv2.namedWindow('Flow (All)', cv2.WINDOW_NORMAL)
                 cv2.namedWindow('Flow (Upward)', cv2.WINDOW_NORMAL)
                 cv2.namedWindow('Flow (Downward)', cv2.WINDOW_NORMAL)
+                cv2.namedWindow('Flow (Lateral)', cv2.WINDOW_NORMAL)
+                cv2.namedWindow('Weighted Mask', cv2.WINDOW_NORMAL)
                 cv2.imshow('Weighted Mask', cv2.WINDOW_NORMAL)
                 cv2.imshow('Solution', current_frame_bgr)
                 cv2.imshow('Flow (All)', flow_bgr)
@@ -321,7 +332,9 @@ def process_video(ground_truth):
                 cv2.imshow('Flow (Downward)', flow_down_bgr)
                 cv2.imshow('Flow (Lateral)', flow_lateral_bgr)
                 cv2.imshow('Weighted Mask', weights_bgr)
+
                 gt_frame = imutils.rotate_bound(gt_frame, 90)
+                gt_frame = cv2.resize(gt_frame, (0, 0), fx=SCALE * 0.5, fy=SCALE * 0.5) 
                 cv2.namedWindow('Ground Truth', cv2.WINDOW_NORMAL)
                 cv2.imshow('Ground Truth', gt_frame)
                 cv2.waitKey(1)
