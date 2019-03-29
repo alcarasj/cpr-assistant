@@ -6,19 +6,25 @@ import csv
 import matplotlib 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+from argparse import ArgumentParser
+
+
+parser = ArgumentParser(description='Compressions/breaths detector for CPR using dense optical flow.')
+parser.add_argument('-d', '--dataset', dest='dataset', help='The name of the dataset e.g. Jerico1.', type=str, required=True)
+parser.add_argument('-r', '--recalculate', dest='recalculate', help='Boolean flag to recalculate if there is any existing CSV (also overwrites existing CSV).', type=bool, default=False)
+parser.add_argument('-o', '--output', dest='output', help='Boolean flag to show output windows.', type=bool, default=True)
+args = parser.parse_args()
 
 # Script execution configuration constants.
-DATASET = 'Jerico3'
-READ_ONLY = False
-SHOW_OUTPUT = True
-SHOW_GT = True
-WEBCAM_MODE = False
+DATASET = args.dataset
+RECALCULATE = args.recalculate
+SHOW_OUTPUT = args.output
 
 # Files and miscellaneous constants.
 INPUT_VIDEO = DATASET + 'BUV.mp4'
-VIDEO = cv2.VideoCapture(0 if WEBCAM_MODE else INPUT_VIDEO)
+VIDEO = cv2.VideoCapture(INPUT_VIDEO)
 FPS = int(VIDEO.get(cv2.CAP_PROP_FPS))
-NUMBER_OF_FRAMES = float(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
+NUMBER_OF_FRAMES = int(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
 DURATION = float(NUMBER_OF_FRAMES / FPS)
 TEXT_START_POS_Y = 30
 CSV_DIR = 'csv_results/%s.csv' % INPUT_VIDEO
@@ -30,10 +36,10 @@ GT_CSV_DIR = './csv_gt/' + DATASET + 'GT.mp4.csv'
 MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.7
 BREATHS_MODE = True
 MIN_FLOW_THRESHOLD = 0.2
-SCALE = 0.33
-LEARNING_RATE = 0.005
-MIN_RESULTANT = 3000
-MIN_BREATHING_MOVEMENT = 20000
+SCALE = 0.2
+LEARNING_RATE = 0.006
+MIN_RESULTANT = 500
+MIN_BREATHING_MOVEMENT = 5000
 MIN_MOVEMENT_PCG = 20
 AVERAGING_TIME = 0.2
 AVERAGING_FRAMES = int(AVERAGING_TIME * FPS)
@@ -59,7 +65,7 @@ def plot_data(data, ground_truth=None):
     chart[0].plot(time_in_seconds, compressions, "r*")
     chart[0].legend(["Optical Flow", "Optical Flow (Breathing)", "Detected Compression (N=%i)" % len([c for c in compressions if c])])
     chart[0].set_ylabel('Vertical Displacement (Pixels)')
-    chart[0].axis([0, time_in_seconds[-1], -75000, 75000])
+    chart[0].axis([0, time_in_seconds[-1], -8000, 8000 ])
 
     # Chart for ground truth.
     frames = list(range(0, len(ground_truth)))
@@ -174,7 +180,7 @@ def process_video(ground_truth):
             # Dense optical flow.
             prev_frame_gray = cv2.cvtColor(prev_frame_bgr, cv2.COLOR_BGR2GRAY)
             current_frame_gray = cv2.cvtColor(current_frame_bgr, cv2.COLOR_BGR2GRAY)
-            flow = cv2.calcOpticalFlowFarneback(prev=prev_frame_gray, next=current_frame_gray, flow=None, pyr_scale=0.5, levels=3, winsize=10, iterations=1, poly_n=5, poly_sigma=1.5, flags=0)
+            flow = cv2.calcOpticalFlowFarneback(prev=prev_frame_gray, next=current_frame_gray, flow=None, pyr_scale=0.5, levels=3, winsize=10, iterations=1, poly_n=3, poly_sigma=1.5, flags=0)
             magnitude, direction = cv2.cartToPolar(flow[...,0], flow[...,1])
             direction_in_deg = direction *  (180 / np.pi)
 
@@ -185,15 +191,15 @@ def process_video(ground_truth):
             upward_movement_mask = np.zeros_like(magnitude)
             np.place(upward_movement_mask, np.logical_and(direction_in_deg > 45, direction_in_deg < 135), 1)
             upward_movement = cv2.bitwise_and(magnitude, magnitude, mask=upward_movement_mask.astype(np.int8))
-            #upward_movement = np.multiply(upward_movement, weights)
-            upward_sum = np.sum(upward_movement)
+            upward_movement_weighted = np.multiply(upward_movement, weights)
+            upward_sum = np.sum(upward_movement_weighted)
 
             # Isolate downward movements for detecting compressions. DOWN = 270deg.
             downward_movement_mask = np.zeros_like(magnitude)
             np.place(downward_movement_mask, np.logical_and(direction_in_deg > 225, direction_in_deg < 315), 1)
             downward_movement = cv2.bitwise_and(magnitude, magnitude, mask=downward_movement_mask.astype(np.int8))
-            #downward_movement = np.multiply(downward_movement, weights)
-            downward_sum = np.sum(downward_movement)
+            downward_movement_weighted = np.multiply(downward_movement, weights)
+            downward_sum = np.sum(downward_movement_weighted)
 
             # Isolate leftward movements for detecting breaths. LEFT = 180deg.
             leftward_movement_mask = np.zeros_like(magnitude)
@@ -226,17 +232,17 @@ def process_video(ground_truth):
             leftward_avg = np.mean([frame[5] for frame in last_n_frames]) if data else 0
             rightward_avg = np.mean([frame[6] for frame in last_n_frames]) if data else 0
 
-            # If there is large lateral movement observed, it is breathing.
-            lateral_avg = leftward_avg + rightward_avg
-            if lateral_avg > MIN_BREATHING_MOVEMENT or is_breathing:
-                is_breathing = True
-                state = "Breathing"
-
             # Vertical resultant using averages for detecting compressions.
             vertical_resultant = upward_avg - downward_avg
 
             # Elapsed time from starting frame for calculating CCR.
             elapsed_time = float(current_frame_number / FPS)
+
+            # If there is large lateral movement observed, it is breathing.
+            lateral_avg = leftward_avg + rightward_avg
+            if (lateral_avg > MIN_BREATHING_MOVEMENT or is_breathing) and compressions > 0 and compressions % 10 == 0:
+                is_breathing = True
+                state = "Breathing"
 
             # COMPRESSION DETECTION.
             # 1. Detect a strong downward movement in the previous 200ms.
@@ -273,7 +279,7 @@ def process_video(ground_truth):
             data.append([vertical_resultant, int(upward_sum), int(downward_sum), state, int(total_movement_pcg), int(leftward_sum), int(rightward_sum)])
 
             # Update weighted masking model.
-            if not is_breathing:
+            if not is_breathing and compressions > 0:
                 old_weights = weights * (1 - LEARNING_RATE)
                 temp = ((downward_movement + upward_movement) * LEARNING_RATE)
                 weights = np.add(old_weights, temp)
@@ -300,10 +306,10 @@ def process_video(ground_truth):
 
 
                 cv2.putText(flow_bgr, "Time: %f" % elapsed_time, (25, TEXT_START_POS_Y), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                cv2.putText(flow_bgr, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                cv2.putText(flow_bgr, "S: %s" % (state), (25, TEXT_START_POS_Y + 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                cv2.putText(flow_bgr, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 90), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                cv2.putText(flow_bgr, "TDIFF: %f" % time_diff, (25, TEXT_START_POS_Y + 120), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 10), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "S: %s" % (state), (25, TEXT_START_POS_Y + 20), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
+                cv2.putText(flow_bgr, "TDIFF: %f" % time_diff, (25, TEXT_START_POS_Y + 40), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
                 cv2.namedWindow('Solution', cv2.WINDOW_NORMAL)
                 cv2.namedWindow('Flow (All)', cv2.WINDOW_NORMAL)
                 cv2.namedWindow('Flow (Upward)', cv2.WINDOW_NORMAL)
@@ -315,21 +321,10 @@ def process_video(ground_truth):
                 cv2.imshow('Flow (Downward)', flow_down_bgr)
                 cv2.imshow('Flow (Lateral)', flow_lateral_bgr)
                 cv2.imshow('Weighted Mask', weights_bgr)
-                if SHOW_GT:
-                    gt_frame = imutils.rotate_bound(gt_frame, 90)
-                    cv2.namedWindow('Ground Truth', cv2.WINDOW_NORMAL)
-                    cv2.putText(gt_frame, "Time: %f" % elapsed_time, (25, TEXT_START_POS_Y), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                    cv2.putText(gt_frame, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                    cv2.putText(gt_frame, "S: %s" % (state), (25, TEXT_START_POS_Y + 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                    cv2.putText(gt_frame, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 90), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                    cv2.putText(gt_frame, "TDIFF: %f" % time_diff, (25, TEXT_START_POS_Y + 120), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                    cv2.putText(gt_frame, "S: %s" % (state), (25, TEXT_START_POS_Y + 60), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                    cv2.putText(gt_frame, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 90), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                    cv2.imshow('Ground Truth', gt_frame)
-
-                k = cv2.waitKey(30) & 0xff
-                if k == 27:
-                    break
+                gt_frame = imutils.rotate_bound(gt_frame, 90)
+                cv2.namedWindow('Ground Truth', cv2.WINDOW_NORMAL)
+                cv2.imshow('Ground Truth', gt_frame)
+                cv2.waitKey(1)
 
         prev_frame_bgr = current_frame_bgr
         state = None
@@ -343,7 +338,7 @@ def main():
     gt_csv = open(GT_CSV_DIR)
     ground_truth = read_from_csv(gt_csv)
 
-    if not READ_ONLY:
+    if RECALCULATE:
         data = process_video(ground_truth)
         write_to_csv(data)
     else:
@@ -351,6 +346,7 @@ def main():
             existing_csv = open(CSV_DIR)
             data = read_from_csv(existing_csv)
         except FileNotFoundError:
+            print("Existing solution CSV file not found for %s. Recalculating..." % DATASET) 
             data = process_video(ground_truth)
             write_to_csv(data)
     plot_data(data, ground_truth)

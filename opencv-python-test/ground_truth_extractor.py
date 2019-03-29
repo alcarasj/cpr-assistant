@@ -9,9 +9,9 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 
-parser = ArgumentParser(description='Raw data retriever for CPR assistant test videos.')
+parser = ArgumentParser(description='Ground truth data extractor for CPR assistant test videos.')
 parser.add_argument('-i', '--input', dest='input', help='Relative path to the input video file.', type=str, required=True)
-parser.add_argument('-o', '--overwrite-csv', dest='overwrite_csv', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV if enabled).', type=bool, required=False, default=False)
+parser.add_argument('-o', '--overwrite-csv', dest='RECALCULATE', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV if enabled).', type=bool, required=False, default=False)
 parser.add_argument('-v', '--video-output', dest='video_output', help='Show video output.', type=bool, required=False, default=False)
 parser.add_argument('-d', '--debug-mode', dest='debug_mode', help='Debug mode for iterating frame-by-frame.', type=bool, required=False, default=False)
 args = parser.parse_args()
@@ -21,13 +21,13 @@ INPUT_VIDEO = args.input
 VIDEO_CAPTURE = cv2.VideoCapture(INPUT_VIDEO)
 FPS = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_FPS))
 TOTAL_FRAMES = VIDEO_CAPTURE.get(cv2.CAP_PROP_FRAME_COUNT)
-OVERWRITE_CSV = args.overwrite_csv
+RECALCULATE = args.RECALCULATE
 VIDEO_OUTPUT = args.video_output
 DEBUG_MODE = args.debug_mode
 CSV_GT_DIR = 'csv_gt/%s.csv'
 
 COMPRESSION_BOUNDS = (710, 740)
-CALCULATE_MAXIMUMS = False or OVERWRITE_CSV 
+CALCULATE_MAXIMUMS = False or RECALCULATE 
 GRAPH_AGAINST_TIME = False
 print("FPS: %i" % FPS)
 
@@ -208,12 +208,12 @@ def get_raw_data():
 
 def main():
 
-	if OVERWRITE_CSV:
-		print("WARNING: CSV OVERWRITE MODE.")
+	if RECALCULATE:
+		print("WARNING: Recalculation will overwrite the existing ground truth CSV file for %s." % INPUT_VIDEO)
 
 	try:
 		existing_csv = open(CSV_GT_DIR % INPUT_VIDEO)
-		if OVERWRITE_CSV:
+		if RECALCULATE:
 			raw_data = get_raw_data()
 			data = get_compressions(raw_data) if CALCULATE_MAXIMUMS else raw_data
 			write_to_csv(data)
@@ -222,6 +222,7 @@ def main():
 			data = get_compressions(raw_data) if CALCULATE_MAXIMUMS else raw_data
 			write_to_csv(data)
 	except FileNotFoundError:
+		print("Existing ground truth CSV file not found for %s. Recalculating..." % INPUT_VIDEO)
 		raw_data = get_raw_data()
 		data = get_compressions(raw_data) if CALCULATE_MAXIMUMS else raw_data
 		write_to_csv(data)
