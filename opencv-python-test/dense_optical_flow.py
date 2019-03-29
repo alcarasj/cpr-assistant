@@ -33,14 +33,14 @@ GT_VIDEO = cv2.VideoCapture(GT_DIR)
 GT_CSV_DIR = './csv_gt/' + DATASET + 'GT.mp4.csv'
 
 # Global constants for calculations (all times are in seconds).
+LEARNING_RATE = 0.0075
 MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.7
 BREATHS_MODE = True
 MIN_FLOW_THRESHOLD = 0.15
 SCALE = 0.2
-LEARNING_RATE = 0.009
 MIN_RESULTANT = 500
 MIN_BREATHING_MOVEMENT = 5000
-MIN_MOVEMENT_PCG = 15
+MIN_MOVEMENT_PCG = 20
 AVERAGING_TIME = 0.15
 AVERAGING_FRAMES = int(AVERAGING_TIME * FPS)
 
@@ -288,11 +288,13 @@ def process_video(ground_truth):
             data.append([vertical_resultant, int(upward_sum), int(downward_sum), state, int(total_movement_pcg), int(leftward_sum), int(rightward_sum)])
 
             # Update weighted masking model.
+            old_weights = weights * (1 - LEARNING_RATE)
             if not is_breathing:
-                old_weights = weights * (1 - LEARNING_RATE)
-                temp = ((downward_movement + upward_movement) * LEARNING_RATE)
-                weights = np.add(old_weights, temp)
+                weights = old_weights + ((downward_movement + upward_movement) * LEARNING_RATE)
                 weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
+            else:
+                weights = old_weights + (weights * LEARNING_RATE)
+
 
 
             # Show output windows for visualization.
