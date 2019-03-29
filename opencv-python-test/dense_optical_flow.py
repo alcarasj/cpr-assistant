@@ -8,11 +8,13 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 # Script execution configuration constants.
-DATASET = 'Jerico1'
-WEBCAM_MODE = False
-READ_ONLY = True
+DATASET = 'Jerico3'
+READ_ONLY = False
 SHOW_OUTPUT = True
-SHOW_GT = False
+SHOW_GT = True
+WEBCAM_MODE = False
+
+# Files and miscellaneous constants.
 INPUT_VIDEO = DATASET + 'BUV.mp4'
 VIDEO = cv2.VideoCapture(0 if WEBCAM_MODE else INPUT_VIDEO)
 FPS = int(VIDEO.get(cv2.CAP_PROP_FPS))
@@ -27,21 +29,22 @@ GT_CSV_DIR = './csv_gt/' + DATASET + 'GT.mp4.csv'
 # Global constants for calculations (all times are in seconds).
 MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT = 0.7
 BREATHS_MODE = True
-MIN_FLOW_THRESHOLD = 0.33
+MIN_FLOW_THRESHOLD = 0.2
 SCALE = 0.33
-LEARNING_RATE = 0.0075
-MIN_RESULTANT = 5000
-MIN_BREATHING_MOVEMENT = 10000
+LEARNING_RATE = 0.005
+MIN_RESULTANT = 3000
+MIN_BREATHING_MOVEMENT = 20000
 MIN_MOVEMENT_PCG = 20
 AVERAGING_TIME = 0.2
 AVERAGING_FRAMES = int(AVERAGING_TIME * FPS)
 
 
-def plot_data(data, ground_truth):
+
+def plot_data(data, ground_truth=None):
     """ Plots data on a graph. """
 
     print("Plotting data...")
-    window, chart = plt.subplots(2, sharex=False)
+    window, chart = plt.subplots(2, sharex=True)
     window.suptitle("DATASET: " + DATASET)
 
     # Chart for solution.
@@ -129,8 +132,7 @@ def process_video(ground_truth):
     hsv[...,1] = 255
     current_frame_gray = cv2.cvtColor(current_frame_bgr,cv2.COLOR_BGR2GRAY)
     prev_frame_bgr = np.array([])
-    weights = np.zeros_like(current_frame_bgr[..., 0])
-    weights_mask = np.ones_like(current_frame_bgr[..., 0])
+    weights = np.ones_like(current_frame_bgr[..., 0])
     weights_hsv = np.zeros_like(current_frame_bgr)
     weights_hsv[..., 1] = 0
     weights_hsv[..., 0] = 0
@@ -172,7 +174,7 @@ def process_video(ground_truth):
             # Dense optical flow.
             prev_frame_gray = cv2.cvtColor(prev_frame_bgr, cv2.COLOR_BGR2GRAY)
             current_frame_gray = cv2.cvtColor(current_frame_bgr, cv2.COLOR_BGR2GRAY)
-            flow = cv2.calcOpticalFlowFarneback(prev=prev_frame_gray, next=current_frame_gray, flow=None, pyr_scale=0.5, levels=3, winsize=25, iterations=1, poly_n=5, poly_sigma=1.2, flags=0)
+            flow = cv2.calcOpticalFlowFarneback(prev=prev_frame_gray, next=current_frame_gray, flow=None, pyr_scale=0.5, levels=3, winsize=10, iterations=1, poly_n=5, poly_sigma=1.5, flags=0)
             magnitude, direction = cv2.cartToPolar(flow[...,0], flow[...,1])
             direction_in_deg = direction *  (180 / np.pi)
 
@@ -183,41 +185,39 @@ def process_video(ground_truth):
             upward_movement_mask = np.zeros_like(magnitude)
             np.place(upward_movement_mask, np.logical_and(direction_in_deg > 45, direction_in_deg < 135), 1)
             upward_movement = cv2.bitwise_and(magnitude, magnitude, mask=upward_movement_mask.astype(np.int8))
-            upward_movement = np.multiply(upward_movement, weights_mask)
+            #upward_movement = np.multiply(upward_movement, weights)
             upward_sum = np.sum(upward_movement)
 
             # Isolate downward movements for detecting compressions. DOWN = 270deg.
             downward_movement_mask = np.zeros_like(magnitude)
             np.place(downward_movement_mask, np.logical_and(direction_in_deg > 225, direction_in_deg < 315), 1)
             downward_movement = cv2.bitwise_and(magnitude, magnitude, mask=downward_movement_mask.astype(np.int8))
-            downward_movement = np.multiply(downward_movement, weights_mask)
+            #downward_movement = np.multiply(downward_movement, weights)
             downward_sum = np.sum(downward_movement)
 
             # Isolate leftward movements for detecting breaths. LEFT = 180deg.
             leftward_movement_mask = np.zeros_like(magnitude)
             np.place(leftward_movement_mask, np.logical_and(direction_in_deg >= 170, direction_in_deg <= 190), 1)
             leftward_movement = cv2.bitwise_and(magnitude, magnitude, mask=leftward_movement_mask.astype(np.int8))
-            leftward_movement = np.multiply(leftward_movement, weights_mask)
+            leftward_movement = np.multiply(leftward_movement, weights)
             leftward_sum = np.sum(leftward_movement)
 
             # Isolate rightward movements for detecting breaths. RIGHT = 0 or 360deg.
             rightward_movement_mask = np.zeros_like(magnitude)
             np.place(rightward_movement_mask, np.logical_or(direction_in_deg <= 10, direction_in_deg >= 350), 1)
             rightward_movement = cv2.bitwise_and(magnitude, magnitude, mask=rightward_movement_mask.astype(np.int8))
-            rightward_movement = np.multiply(rightward_movement, weights_mask)
+            rightward_movement = np.multiply(rightward_movement, weights)
             rightward_sum = np.sum(rightward_movement)
 
             # Isolate lateral movements as a whole for visualisation.
-            lateral_movement_mask = cv2.bitwise_or(leftward_movement_mask, rightward_movement_mask)
-            lateral_movement = np.multiply(magnitude, lateral_movement_mask)
+            lateral_movement = rightward_movement + leftward_movement
             lateral_sum = leftward_sum + rightward_sum
 
             # Outputs of calculations.
-            total_movement_pcg = (np.sum(np.where(np.multiply(magnitude, weights_mask) > 0)[0])) / total_pixels
+            total_movement_pcg = (np.sum(np.where(np.multiply(magnitude, weights) > 0)[0])) / total_pixels
 
             if is_breathing:
                 state = None
-
 
             # Compute average motion over N previous frames, where N = AVERAGING_FRAMES.
             last_n_frames = data[-(AVERAGING_FRAMES):]          
@@ -226,25 +226,17 @@ def process_video(ground_truth):
             leftward_avg = np.mean([frame[5] for frame in last_n_frames]) if data else 0
             rightward_avg = np.mean([frame[6] for frame in last_n_frames]) if data else 0
 
-            # Calculate weights for isolation of zone with high movement density.
+            # If there is large lateral movement observed, it is breathing.
             lateral_avg = leftward_avg + rightward_avg
             if lateral_avg > MIN_BREATHING_MOVEMENT or is_breathing:
                 is_breathing = True
                 state = "Breathing"
-
-            if compressions > 0 and not is_breathing:
-                old_weights = weights * (1 - LEARNING_RATE)
-                temp = (magnitude * LEARNING_RATE)
-                weights = np.add(old_weights, temp)
-                weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
-                weights_mask = weights
 
             # Vertical resultant using averages for detecting compressions.
             vertical_resultant = upward_avg - downward_avg
 
             # Elapsed time from starting frame for calculating CCR.
             elapsed_time = float(current_frame_number / FPS)
-
 
             # COMPRESSION DETECTION.
             # 1. Detect a strong downward movement in the previous 200ms.
@@ -256,7 +248,7 @@ def process_video(ground_truth):
             if not strong_downward_movement_detected and vertical_resultant < -(MIN_RESULTANT) and total_movement_pcg > MIN_MOVEMENT_PCG:
                 strong_downward_movement_detected = True
                 strong_downward_movement_time = elapsed_time
-            elif strong_downward_movement_detected and vertical_resultant > MIN_RESULTANT and total_movement_pcg > MIN_MOVEMENT_PCG and (elapsed_time - strong_downward_movement_time) <= MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
+            elif strong_downward_movement_detected and vertical_resultant > (MIN_RESULTANT * 0.8) and total_movement_pcg > MIN_MOVEMENT_PCG and (elapsed_time - strong_downward_movement_time) <= MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
                 upward_movement_detected_within_allowed_time = True
             elif strong_downward_movement_detected and (elapsed_time - strong_downward_movement_time) > MAX_ALLOWED_TIME_FOR_UPWARD_MOVEMENT:
                 strong_downward_movement_detected = False
@@ -277,9 +269,15 @@ def process_video(ground_truth):
 
                 prev_compression_time = elapsed_time
 
-
             print("[%i] (%ipc) VERT_R: %i, S: %s" % (current_frame_number, total_movement_pcg, vertical_resultant, state))
             data.append([vertical_resultant, int(upward_sum), int(downward_sum), state, int(total_movement_pcg), int(leftward_sum), int(rightward_sum)])
+
+            # Update weighted masking model.
+            if not is_breathing:
+                old_weights = weights * (1 - LEARNING_RATE)
+                temp = ((downward_movement + upward_movement) * LEARNING_RATE)
+                weights = np.add(old_weights, temp)
+                weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
 
 
             # Show output windows for visualization.
@@ -297,7 +295,7 @@ def process_video(ground_truth):
                 hsv[..., 2] = cv2.normalize(lateral_movement, None, 0, 255, cv2.NORM_MINMAX)      
                 flow_lateral_bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-                weights_hsv[..., 2] = cv2.normalize(weights_mask, None, 0, 255, cv2.NORM_MINMAX)
+                weights_hsv[..., 2] = cv2.normalize(weights, None, 0, 255, cv2.NORM_MINMAX)
                 weights_bgr = cv2.cvtColor(weights_hsv, cv2.COLOR_HSV2BGR)
 
 

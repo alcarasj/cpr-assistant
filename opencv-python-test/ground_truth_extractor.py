@@ -26,7 +26,7 @@ VIDEO_OUTPUT = args.video_output
 DEBUG_MODE = args.debug_mode
 CSV_GT_DIR = 'csv_gt/%s.csv'
 
-COMPRESSION_BOUNDS = (885, 910)
+COMPRESSION_BOUNDS = (710, 740)
 CALCULATE_MAXIMUMS = False or OVERWRITE_CSV 
 GRAPH_AGAINST_TIME = False
 print("FPS: %i" % FPS)

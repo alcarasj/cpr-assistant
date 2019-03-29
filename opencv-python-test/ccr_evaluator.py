@@ -7,8 +7,10 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
-#CSV_DIR = "./csv_gt/Jerico1GT.mp4.csv"
-CSV_DIR = "./csv_results/Jerico1BUV.mp4.csv"
+
+DATASET = "Jerico3"
+GT_CSV_DIR = "./csv_gt/%sGT.mp4.csv" % DATASET
+BUV_CSV_DIR = "./csv_results/%sBUV.mp4.csv" % DATASET
 FPS = 30
 
 def read_from_csv(csv_file):
@@ -19,7 +21,7 @@ def read_from_csv(csv_file):
 
     reader = csv.reader(csv_file, delimiter=',')
     for index, row in enumerate(reader):
-        coords.append((index + 1, row[3]))
+        coords.append((index, row[3]))
 
     print("Reading from CSV file complete! %i co-ordinates read." % len(coords))
     return coords
@@ -47,15 +49,18 @@ def evaluate_ccr(data):
 			prev_compression_time = elapsed_time
 		else:
 			interrupted_frames += 1
-	print("%s:  AVG_CCR: %f, CCF: %f, Nc: %i" % (CSV_DIR, np.mean(ccr_data), interrupted_frames / 30, compressions))
+	print("%s:  AVG_CCR: %f, CCF: %f, Nc: %i" % (DATASET, np.mean(ccr_data), interrupted_frames / 30, compressions))
 
 def main():
     try:
-        existing_csv = open(CSV_DIR)
-        data = read_from_csv(existing_csv)
-        evaluate_ccr(data)
+        gt_csv = open(GT_CSV_DIR)
+        buv_csv = open(BUV_CSV_DIR)
+        gt_data = read_from_csv(gt_csv)
+        buv_data = read_from_csv(buv_csv)
+        evaluate_ccr(gt_data)
+        evaluate_ccr(buv_data)
     except FileNotFoundError:
-    	print("%s not found." % CSV_DIR)
+    	print("CSV files for %s dataset were not found." % DATASET)
 
 
 if __name__ == '__main__':
