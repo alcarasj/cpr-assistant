@@ -28,16 +28,16 @@ MINIMUM_ACCELERATION - The minimum acceleration (in pixels/s/s) required for det
 MOVING_AVG_PERIOD - The moving average period length.
 MAX_TIME_FOR_UPWARD_ACCELERATION - The max allowed time for an upward acceleration to be detected as a compression from when a strong downward acceleration was detected.
 MIN_MOVEMENT_PCG - The minimum percentage of pixels moved to be considered valid for compression detection.
-MIN_FLOW_THRESHOLD - The minimum flow magnitude to be considered a non-noisy movement.  
+MIN_FLOW_THRESHOLD - The minimum flow magnitude to be considered not to be noise.
 SCALE - The scale factor for the frame before processing.
 
 """
 BREATHING_MODE = True  
-LEARNING_RATE = 0.0065
-LOOKBACK_TIME = 0.2
-MINIMUM_ACCELERATION = 3000
-MOVING_AVG_PERIOD = 0.2
-MAX_TIME_FOR_UPWARD_ACCELERATION = 0.5
+LEARNING_RATE = 0.005
+LOOKBACK_TIME = 0.3
+MINIMUM_ACCELERATION = 1000
+MOVING_AVG_PERIOD = 0.3
+MAX_TIME_FOR_UPWARD_ACCELERATION = 0.75
 MIN_MOVEMENT_PCG = 15
 MIN_FLOW_THRESHOLD = 0.2
 SCALE = 0.2
@@ -195,7 +195,7 @@ def process_video(ground_truth, preloaded_weights=None):
     weights_hsv = np.zeros_like(current_frame_bgr)
     weights_hsv[..., 1] = 0
     weights_hsv[..., 0] = 0
-    if preloaded_weights.any():
+    if preloaded_weights is not None:
         weights = preloaded_weights * 0.1
     else: 
         weights = np.zeros_like(current_frame_bgr[..., 0]) + 0.5
@@ -314,10 +314,12 @@ def process_video(ground_truth, preloaded_weights=None):
             # 3. If these conditions are met, then a compression is detected by this algorithm.
             #    Otherwise, the downward movement is set back to False.
 
-            if not strong_downward_acceleration_detected and vertical_acceleration < -(MINIMUM_ACCELERATION) and total_movement_pcg > MIN_MOVEMENT_PCG:
+
+            acc_time_diff = elapsed_time - strong_downward_acceleration_time
+            if not strong_downward_acceleration_detected and vertical_acceleration < -(MINIMUM_ACCELERATION * 0.25) and total_movement_pcg > MIN_MOVEMENT_PCG:
                 strong_downward_acceleration_detected = True
                 strong_downward_acceleration_time = elapsed_time
-            elif strong_downward_acceleration_detected and vertical_acceleration > (MINIMUM_ACCELERATION) and total_movement_pcg > MIN_MOVEMENT_PCG and (elapsed_time - strong_downward_acceleration_time) <= MAX_TIME_FOR_UPWARD_ACCELERATION:
+            elif strong_downward_acceleration_detected and vertical_acceleration > (MINIMUM_ACCELERATION) and total_movement_pcg > MIN_MOVEMENT_PCG and acc_time_diff <= MAX_TIME_FOR_UPWARD_ACCELERATION:
                 upward_movement_detected_within_allowed_time = True
             elif strong_downward_acceleration_detected and (elapsed_time - strong_downward_acceleration_time) > MAX_TIME_FOR_UPWARD_ACCELERATION:
                 strong_downward_acceleration_detected = False
@@ -344,7 +346,7 @@ def process_video(ground_truth, preloaded_weights=None):
             # Update weighted masking model.
             old_weights = weights * (1 - LEARNING_RATE)
             if not is_breathing:
-                weights = old_weights + ((downward_movement + upward_movement) * LEARNING_RATE)
+                weights = old_weights + preloaded_weights + ((downward_movement + upward_movement) * LEARNING_RATE)
                 weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
             elif state == "Compression":
                 weights = weights / (1 - LEARNING_RATE)
