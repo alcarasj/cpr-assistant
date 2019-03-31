@@ -33,10 +33,10 @@ SCALE - The scale factor for the frame before processing.
 
 """
 BREATHING_MODE = True  
-LEARNING_RATE = 0.005
-LOOKBACK_TIME = 0.3
-MINIMUM_ACCELERATION = 1000
-MOVING_AVG_PERIOD = 0.3
+LEARNING_RATE = 0.0065
+LOOKBACK_TIME = 0.325
+MINIMUM_ACCELERATION = 2000
+MOVING_AVG_PERIOD = 0.325
 MAX_TIME_FOR_UPWARD_ACCELERATION = 0.75
 MIN_MOVEMENT_PCG = 15
 MIN_FLOW_THRESHOLD = 0.2
@@ -51,17 +51,17 @@ WEIGHTS_FILE = args.weights_file
 SAVE_WEIGHTS = args.save_weights
 
 # Files and miscellaneous constants.
-INPUT_VIDEO = DATASET + 'BUV.mp4'
+INPUT_VIDEO = "./videos/%sBUV.mp4" % DATASET
 WEIGHTS_DIR = "./weights/%s.npy" % DATASET 
 VIDEO = cv2.VideoCapture(INPUT_VIDEO)
 FPS = int(VIDEO.get(cv2.CAP_PROP_FPS))
 NUMBER_OF_FRAMES = int(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
 DURATION = float(NUMBER_OF_FRAMES / FPS)
 TEXT_START_POS_Y = 30
-CSV_DIR = 'csv_results/%s.csv' % INPUT_VIDEO
-GT_DIR = DATASET + 'GT.mp4'
+CSV_DIR = 'csv_results/%sBUV.mp4.csv' % DATASET
+GT_DIR = './videos/%sGT.mp4'
 GT_VIDEO = cv2.VideoCapture(GT_DIR)
-GT_CSV_DIR = './csv_gt/' + DATASET + 'GT.mp4.csv'
+GT_CSV_DIR = './csv_gt/%sGT.mp4.csv' % DATASET
 AVERAGING_FRAMES = int(MOVING_AVG_PERIOD * FPS)
 LOOKBACK_FRAMES = int(LOOKBACK_TIME * FPS)
 
@@ -104,7 +104,7 @@ def plot_data(data, ground_truth=None):
     chart[0].plot(time_in_seconds, breathing, "y:", color="orange")
     chart[0].plot(time_in_seconds, compressions, "r*")
     chart[0].legend(["Optical Flow", "Optical Flow (Breathing)", "Detected Compression (N=%i)" % len([c for c in compressions if c])])
-    chart[0].set_ylabel('Vertical Acceleration (pixels/s/s)')
+    chart[0].set_ylabel('Vertical Acceleration (pixels per second^2)')
     chart[0].axis([0, time_in_seconds[-1], np.min([c for c in movement_delta if c]) * 1.2, np.max([c for c in movement_delta if c]) * 1.2])
 
     # Chart for ground truth.
@@ -118,9 +118,9 @@ def plot_data(data, ground_truth=None):
     chart[1].plot(time_in_seconds, breathing, "b:")
     chart[1].plot(time_in_seconds, compressions, "m^")
     chart[1].legend(["Ground Truth", "Ground Truth (Breathing)", "True Compression (N=%i)" % len([c for c in compressions if c])])
-    chart[1].set_ylabel('Y Co-ordinates')
+    chart[1].set_ylabel('Frame Y Co-ordinates (pixels)')
     chart[1].set_xlabel('Time (Seconds)')
-    chart[1].axis([0, time_in_seconds[-1], np.min([c for c in movement if c]) * 1.2, np.max([c for c in movement if c]) * 1.2])
+    chart[1].axis([0, time_in_seconds[-1], np.min([c for c in movement if c]) - 100, np.max([c for c in movement if c]) + 100])
     
     plt.show()
 
@@ -294,7 +294,7 @@ def process_video(ground_truth, preloaded_weights=None):
             # Get vertical delta for detecting compressions.
             if last_n_frames and len(last_n_frames) >= LOOKBACK_FRAMES:
                 vertical_velocity = vertical_displacement - data[-(LOOKBACK_FRAMES)][0]
-                vertical_acceleration = vertical_velocity - data[-(LOOKBACK_FRAMES)][7]
+                vertical_acceleration = vertical_velocity - data[-(int(LOOKBACK_FRAMES * 0.8))][7]
             else: 
                 vertical_velocity = 0
                 vertical_acceleration = 0
@@ -314,9 +314,8 @@ def process_video(ground_truth, preloaded_weights=None):
             # 3. If these conditions are met, then a compression is detected by this algorithm.
             #    Otherwise, the downward movement is set back to False.
 
-
             acc_time_diff = elapsed_time - strong_downward_acceleration_time
-            if not strong_downward_acceleration_detected and vertical_acceleration < -(MINIMUM_ACCELERATION * 0.25) and total_movement_pcg > MIN_MOVEMENT_PCG:
+            if not strong_downward_acceleration_detected and vertical_acceleration < -(MINIMUM_ACCELERATION * 0.) and total_movement_pcg > MIN_MOVEMENT_PCG:
                 strong_downward_acceleration_detected = True
                 strong_downward_acceleration_time = elapsed_time
             elif strong_downward_acceleration_detected and vertical_acceleration > (MINIMUM_ACCELERATION) and total_movement_pcg > MIN_MOVEMENT_PCG and acc_time_diff <= MAX_TIME_FOR_UPWARD_ACCELERATION:
@@ -344,9 +343,12 @@ def process_video(ground_truth, preloaded_weights=None):
             data.append([vertical_displacement, int(upward_sum), int(downward_sum), state, int(total_movement_pcg), int(leftward_sum), int(rightward_sum), vertical_velocity, vertical_acceleration])
 
             # Update weighted masking model.
-            old_weights = weights * (1 - LEARNING_RATE)
+            if preloaded_weights is not None:
+                old_weights = weights * (1 - LEARNING_RATE) + (preloaded_weights * LEARNING_RATE)
+            else:
+                old_weights = weights * (1 - LEARNING_RATE)
             if not is_breathing:
-                weights = old_weights + preloaded_weights + ((downward_movement + upward_movement) * LEARNING_RATE)
+                weights = old_weights + ((downward_movement + upward_movement) * LEARNING_RATE)
                 weights = cv2.normalize(weights, weights, 0, 1, cv2.NORM_MINMAX)
             elif state == "Compression":
                 weights = weights / (1 - LEARNING_RATE)
