@@ -66,6 +66,34 @@ AVERAGING_FRAMES = int(MOVING_AVG_PERIOD * FPS)
 LOOKBACK_FRAMES = int(LOOKBACK_TIME * FPS)
 
 
+
+def evaluate_ccr(data):
+    """ Evaluate CCR through every datapoint, and dump the CCR for that datapoint. """
+
+    ccr_data = np.array([])
+    compressions = 0
+    prev_compression_time = None
+    interrupted_frames = 0
+
+    for index, datapoint in enumerate(data):
+        elapsed_time = float(index / FPS)
+        if datapoint[3] == "Compression":
+            compressions += 1
+            if prev_compression_time:
+                time_diff = elapsed_time - prev_compression_time
+                ccr = 60 / time_diff
+                ccr_data = np.append(ccr_data, ccr)
+            else:
+                ccr_data = np.append(ccr_data, None)    
+                #print("[%i: %f] Nc: %i, CCR: %f, MEAN: %f, TIMEDIFF: %f" % (datapoint[0], elapsed_time, compressions, ccr, np.mean(ccr_data), time_diff))
+            prev_compression_time = elapsed_time
+        else:
+            interrupted_frames += 1
+            ccr_data = np.append(ccr_data, None)
+    print("%s:  AVG_CCR: %f, CCF: %f, Nc: %i" % (DATASET, np.mean([c for c in ccr_data if c]), interrupted_frames / 30, compressions))
+    return ccr_data
+
+
 def save_weights(weights):
     """ Saves the weights after the processing of video. """
 
@@ -90,7 +118,7 @@ def load_weights(weights_file):
 def plot_data(data, ground_truth=None):
     """ Plots data on a graph. """
     print("Plotting data...")
-    window, chart = plt.subplots(2, sharex=True)
+    window, chart = plt.subplots(3, sharex=True)
     window.suptitle("DATASET: " + DATASET)
 
     # Chart for solution.
@@ -103,24 +131,39 @@ def plot_data(data, ground_truth=None):
     chart[0].plot(time_in_seconds, movement_delta, "y-", color="orange")
     chart[0].plot(time_in_seconds, breathing, "y:", color="orange")
     chart[0].plot(time_in_seconds, compressions, "r*")
-    chart[0].legend(["Optical Flow", "Optical Flow (Breathing)", "Detected Compression (N=%i)" % len([c for c in compressions if c])])
-    chart[0].set_ylabel('Vertical Acceleration (pixels per second^2)')
+    detected = len([c for c in compressions if c])
+    chart[0].legend(["Optical Flow", "Optical Flow (Breathing)", "Detected Compression (N=%i)" % detected])
+    chart[0].set_ylabel('Vertical Acceleration (pixels/s^2)')
     chart[0].axis([0, time_in_seconds[-1], np.min([c for c in movement_delta if c]) * 1.2, np.max([c for c in movement_delta if c]) * 1.2])
 
     # Chart for ground truth.
     frames = list(range(0, len(ground_truth)))
     time_in_seconds = [(i / FPS) for i in frames]
-    movement = [coord[1] if not coord[3] or coord[3] == "Compression" else None for coord in ground_truth]
-    breathing = [coord[1] if coord[3] == "Breathing" or coord[3] == "Compression" else None for coord in ground_truth]
-    compressions = [coord[1] if coord[3] == "Compression" else None for coord in ground_truth]
+    gt_movement = [coord[1] if not coord[3] or coord[3] == "Compression" else None for coord in ground_truth]
+    gt_breathing = [coord[1] if coord[3] == "Breathing" or coord[3] == "Compression" else None for coord in ground_truth]
+    gt_compressions = [coord[1] if coord[3] == "Compression" else None for coord in ground_truth]
     chart[1].set_title('Ground Truth')
-    chart[1].plot(time_in_seconds, movement, "b-")
-    chart[1].plot(time_in_seconds, breathing, "b:")
-    chart[1].plot(time_in_seconds, compressions, "m^")
-    chart[1].legend(["Ground Truth", "Ground Truth (Breathing)", "True Compression (N=%i)" % len([c for c in compressions if c])])
+    chart[1].plot(time_in_seconds, gt_movement, "b-")
+    chart[1].plot(time_in_seconds, gt_breathing, "b:")
+    chart[1].plot(time_in_seconds, gt_compressions, "c^")
+    gt_detected = len([c for c in gt_compressions if c])
+    chart[1].legend(["Ground Truth", "Ground Truth (Breathing)", "True Compression (N=%i)" % gt_detected])
     chart[1].set_ylabel('Frame Y Co-ordinates (pixels)')
-    chart[1].set_xlabel('Time (Seconds)')
-    chart[1].axis([0, time_in_seconds[-1], np.min([c for c in movement if c]) - 100, np.max([c for c in movement if c]) + 100])
+    chart[1].axis([0, time_in_seconds[-1], np.min([c for c in gt_movement if c]) - 100, np.max([c for c in gt_movement if c]) + 100])
+
+    # Chart for CCR comparison.
+    frames = list(range(0, len(ground_truth)))
+    time_in_seconds = [(i / FPS) for i in frames]
+    ccr = evaluate_ccr(data)
+    ccr = np.append(ccr, None)
+    gt_ccr = evaluate_ccr(ground_truth)
+    chart[2].set_title('Compression Rate')
+    chart[2].plot(time_in_seconds, ccr, "ro")
+    chart[2].plot(time_in_seconds, gt_ccr, "co")
+    chart[2].legend(["Optical Flow (μ=%iCPM)" % np.mean([c for c in ccr if c]), "Ground Truth (μ=%iCPM)" % np.mean([c for c in gt_ccr if c])])
+    chart[2].set_ylabel('Compressions/min')
+    chart[2].set_xlabel('Time (Seconds)')
+    chart[2].axis([0, time_in_seconds[-1], np.min([c for c in gt_ccr if c]) - 100, np.max([c for c in gt_ccr if c]) + 100])
     
     plt.show()
 
