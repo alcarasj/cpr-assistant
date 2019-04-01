@@ -358,7 +358,7 @@ def process_video(ground_truth, preloaded_weights=None):
             #    Otherwise, the downward movement is set back to False.
 
             acc_time_diff = elapsed_time - strong_downward_acceleration_time
-            if not strong_downward_acceleration_detected and vertical_acceleration < -(MINIMUM_ACCELERATION * 0.) and total_movement_pcg > MIN_MOVEMENT_PCG:
+            if not strong_downward_acceleration_detected and vertical_acceleration < -(MINIMUM_ACCELERATION * 0.25) and total_movement_pcg > MIN_MOVEMENT_PCG:
                 strong_downward_acceleration_detected = True
                 strong_downward_acceleration_time = elapsed_time
             elif strong_downward_acceleration_detected and vertical_acceleration > (MINIMUM_ACCELERATION) and total_movement_pcg > MIN_MOVEMENT_PCG and acc_time_diff <= MAX_TIME_FOR_UPWARD_ACCELERATION:

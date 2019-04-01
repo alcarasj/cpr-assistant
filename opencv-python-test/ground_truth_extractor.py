@@ -18,7 +18,7 @@ args = parser.parse_args()
 
 
 INPUT_VIDEO = args.input
-VIDEO_CAPTURE = cv2.VideoCapture(INPUT_VIDEO)
+VIDEO_CAPTURE = cv2.VideoCapture("./videos/%s" % INPUT_VIDEO)
 FPS = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_FPS))
 TOTAL_FRAMES = VIDEO_CAPTURE.get(cv2.CAP_PROP_FRAME_COUNT)
 RECALCULATE = args.RECALCULATE
@@ -26,7 +26,7 @@ VIDEO_OUTPUT = args.video_output
 DEBUG_MODE = args.debug_mode
 CSV_GT_DIR = 'csv_gt/%s.csv'
 
-COMPRESSION_BOUNDS = (710, 740)
+COMPRESSION_BOUNDS = (610, 630)
 CALCULATE_MAXIMUMS = False or RECALCULATE 
 GRAPH_AGAINST_TIME = False
 print("FPS: %i" % FPS)
@@ -98,9 +98,9 @@ def write_to_csv(data):
 		os.remove(CSV_GT_DIR % INPUT_VIDEO)
 
 	try:
-	    os.stat('csv_raw')
+	    os.stat('csv_gt')
 	except:
-	    os.mkdir('csv_raw')
+	    os.mkdir('csv_gt')
 	
 	csv_file = open(CSV_GT_DIR % INPUT_VIDEO, mode='w')
 	writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
