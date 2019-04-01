@@ -59,7 +59,7 @@ NUMBER_OF_FRAMES = int(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
 DURATION = float(NUMBER_OF_FRAMES / FPS)
 TEXT_START_POS_Y = 30
 CSV_DIR = 'csv_results/%sBUV.mp4.csv' % DATASET
-GT_DIR = './videos/%sGT.mp4'
+GT_DIR = './videos/%sGT.mp4' % DATASET
 GT_VIDEO = cv2.VideoCapture(GT_DIR)
 GT_CSV_DIR = './csv_gt/%sGT.mp4.csv' % DATASET
 AVERAGING_FRAMES = int(MOVING_AVG_PERIOD * FPS)
@@ -119,7 +119,7 @@ def plot_data(data, ground_truth=None):
     """ Plots data on a graph. """
     print("Plotting data...")
     window, chart = plt.subplots(3, sharex=True)
-    window.suptitle("DATASET: " + DATASET)
+    window.suptitle("DATASET: %s" % DATASET)
 
     # Chart for solution.
     frames = list(range(0, len(data)))
@@ -444,6 +444,7 @@ def process_video(ground_truth, preloaded_weights=None):
 
     VIDEO.release()
     cv2.destroyAllWindows()
+    print("Processing complete.")
     return weights, data
 
 
