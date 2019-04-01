@@ -160,7 +160,7 @@ def plot_data(data, ground_truth=None):
     chart[2].set_title('Compression Rate')
     chart[2].plot(time_in_seconds, gt_ccr, "co")
     chart[2].plot(time_in_seconds, ccr, "ro")
-    chart[2].legend(["Optical Flow (μ=%iCPM)" % np.mean([c for c in ccr if c]), "Ground Truth (μ=%iCPM)" % np.mean([c for c in gt_ccr if c])])
+    chart[2].legend(["Ground Truth (μ=%iCPM)" % np.mean([c for c in gt_ccr if c]), "Optical Flow (μ=%iCPM)" % np.mean([c for c in ccr if c])])
     chart[2].set_ylabel('Compressions/min')
     chart[2].set_xlabel('Time (Seconds)')
     chart[2].axis([0, time_in_seconds[-1], np.min([c for c in gt_ccr if c]) - 100, np.max([c for c in gt_ccr if c]) + 100])
