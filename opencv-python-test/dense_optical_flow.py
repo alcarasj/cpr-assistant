@@ -25,7 +25,7 @@ BREATHING_MODE - Detects breathing if True.
 LEARNING_RATE - Learning rate for a weighted mask for isolation of user in frame (experimental ideal is 0.0065).
 LOOKBACK_TIME - The time for which the algorithm calculates derivatives of movement (velocity and acceleration).
 MINIMUM_ACCELERATION - The minimum acceleration (in pixels/s/s) required for detecting a compression.
-MOVING_AVG_PERIOD - The moving average period length.
+MOVING_AVG_PERIOD - The moving average period length for smoothing the optical flow signal.
 MAX_TIME_FOR_UPWARD_ACCELERATION - The max allowed time for an upward acceleration to be detected as a compression from when a strong downward acceleration was detected.
 MIN_MOVEMENT_PCG - The minimum percentage of pixels moved to be considered valid for compression detection.
 MIN_FLOW_THRESHOLD - The minimum flow magnitude to be considered not to be noise.
@@ -158,8 +158,8 @@ def plot_data(data, ground_truth=None):
     ccr = np.append(ccr, None)
     gt_ccr = evaluate_ccr(ground_truth)
     chart[2].set_title('Compression Rate')
-    chart[2].plot(time_in_seconds, ccr, "ro")
     chart[2].plot(time_in_seconds, gt_ccr, "co")
+    chart[2].plot(time_in_seconds, ccr, "ro")
     chart[2].legend(["Optical Flow (μ=%iCPM)" % np.mean([c for c in ccr if c]), "Ground Truth (μ=%iCPM)" % np.mean([c for c in gt_ccr if c])])
     chart[2].set_ylabel('Compressions/min')
     chart[2].set_xlabel('Time (Seconds)')
