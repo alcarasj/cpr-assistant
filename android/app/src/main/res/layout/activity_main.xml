@@ -15,12 +15,37 @@
             android:layout_width="match_parent"
             android:layout_height="246dp" />
 
-        <Button
-            android:id="@+id/start_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="146dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:text="Start" />
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/start_button"
+                style="@style/Widget.AppCompat.Button.Colored"
+                android:layout_width="175dp"
+                android:layout_height="match_parent"
+                android:text="Start" />
+
+            <TextView
+                android:id="@+id/ccr_textview"
+                android:layout_width="400dp"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="READY"
+                android:textAppearance="@style/TextAppearance.AppCompat.Headline"
+                android:textSize="36sp" />
+
+            <Button
+                android:id="@+id/more_button"
+                style="@style/Widget.AppCompat.Button.Small"
+                android:layout_width="125dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="More" />
+
+        </LinearLayout>
+
     </LinearLayout>
 
 </LinearLayout>
