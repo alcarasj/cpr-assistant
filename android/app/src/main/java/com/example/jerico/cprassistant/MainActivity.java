@@ -36,8 +36,8 @@ import java.lang.Runnable;
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String  TAG              = "MainActivity";
 
-    private static final double SCALE = 0.03;
-    private static final double MIN_FLOW_THRESHOLD = 0.1;
+    private static final double SCALE = 0.025;
+    private static final double MIN_FLOW_THRESHOLD = 0.3;
     private static final double AVERAGING_FRAMES = 10;
     private static final int MINIMUM_ACCELERATION = 150;
     private static final int MIN_UPWARD_ACCEL_TIME_MS = 750;
@@ -60,6 +60,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private Timer detectionTimer;
     private int detectedCompressions;
     private double lastDetectedCompressionTime;
+    private int verticalAcceleration;
     private int ccr;
 
 
@@ -222,7 +223,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 int verticalDisplacement = upwardSum - downwardSum;
                 int verticalDisplacementAvg = 0;
                 int verticalVelocity = 0;
-                int verticalAcceleration = 0;
+                verticalAcceleration = 0;
                 int data[] = new int[3];
 
                 if (buffer.size() >= AVERAGING_FRAMES) {
@@ -272,7 +273,13 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                      }
                     lastDetectedCompressionTime = currentTime;
                 }
-                mCCRTextView.setText("N: " + detectedCompressions + ", CCR: " + ccr);
+                Handler refresh = new Handler(Looper.getMainLooper());
+                refresh.post(new Runnable() {
+                    public void run() {
+                        mCCRTextView.setText("N: " + detectedCompressions + ", CCR: " + ccr + ", ACC: " + verticalAcceleration);
+                    }
+                });
+
             }
 
             prevFrameBGR = currentFrameBGR;
