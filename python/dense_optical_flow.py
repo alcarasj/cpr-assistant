@@ -35,13 +35,13 @@ SCALE - The scale factor for the frame before processing.
 BREATHING_MODE = True  
 LEARNING_RATE = 0.0065
 LOOKBACK_TIME = 0.325
-MINIMUM_ACCELERATION = 2000
+MINIMUM_ACCELERATION = 1500
 MOVING_AVG_PERIOD = 0.325
 MAX_TIME_FOR_UPWARD_ACCELERATION = 0.75
-MIN_MOVEMENT_PCG = 15
+MIN_MOVEMENT_PCG = 10
 MIN_FLOW_THRESHOLD = 0.2
 SCALE = 0.2
-MIN_BREATHING_MOVEMENT = 5000
+MIN_BREATHING_MOVEMENT = 3000
 
 # Arguments. 
 DATASET = args.dataset
@@ -288,14 +288,14 @@ def process_video(ground_truth, preloaded_weights=None):
             
             # Isolate upward movements for detecting compressions. UP = 90deg.
             upward_movement_mask = np.zeros_like(magnitude)
-            np.place(upward_movement_mask, np.logical_and(direction_in_deg > 45, direction_in_deg < 135), 1)
+            np.place(upward_movement_mask, np.logical_and(direction_in_deg > 30, direction_in_deg < 150), 1)
             upward_movement = cv2.bitwise_and(magnitude, magnitude, mask=upward_movement_mask.astype(np.int8))
             upward_movement_weighted = np.multiply(upward_movement, weights)
             upward_sum = np.sum(upward_movement_weighted)
 
             # Isolate downward movements for detecting compressions. DOWN = 270deg.
             downward_movement_mask = np.zeros_like(magnitude)
-            np.place(downward_movement_mask, np.logical_and(direction_in_deg > 225, direction_in_deg < 315), 1)
+            np.place(downward_movement_mask, np.logical_and(direction_in_deg > 210, direction_in_deg < 330), 1)
             downward_movement = cv2.bitwise_and(magnitude, magnitude, mask=downward_movement_mask.astype(np.int8))
             downward_movement_weighted = np.multiply(downward_movement, weights)
             downward_sum = np.sum(downward_movement_weighted)
