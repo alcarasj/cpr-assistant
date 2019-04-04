@@ -25,7 +25,8 @@
                 style="@style/Widget.AppCompat.Button.Colored"
                 android:layout_width="175dp"
                 android:layout_height="match_parent"
-                android:text="Start" />
+                android:text="Start"
+                android:textSize="24sp" />
 
             <TextView
                 android:id="@+id/ccr_textview"
@@ -42,7 +43,8 @@
                 android:layout_width="125dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:text="More" />
+                android:text="More"
+                android:textSize="18sp" />
 
         </LinearLayout>
 
