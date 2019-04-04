@@ -272,12 +272,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                      }
                     lastDetectedCompressionTime = currentTime;
                 }
-                Handler refresh = new Handler(Looper.getMainLooper());
-                refresh.post(new Runnable() {
-                    public void run() {
-                        mCCRTextView.setText("N: " + detectedCompressions + ", CCR: " + ccr);
-                    }
-                });
+                mCCRTextView.setText("N: " + detectedCompressions + ", CCR: " + ccr);
             }
 
             prevFrameBGR = currentFrameBGR;
