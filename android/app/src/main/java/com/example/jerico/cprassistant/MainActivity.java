@@ -33,10 +33,10 @@ import java.util.TimerTask;
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String  TAG              = "MainActivity";
 
-    private static final double SCALE = 0.03;
-    private static final double MIN_FLOW_THRESHOLD = 0.2;
+    private static final double SCALE = 0.02;
+    private static final double MIN_FLOW_THRESHOLD = 0.1;
     private static final double AVERAGING_FRAMES = 15;
-    private static final int MINIMUM_ACCELERATION = 750;
+    private static final int MINIMUM_ACCELERATION = 200;
     private static final int MIN_UPWARD_ACCEL_TIME_MS = 750;
 
     private Mat mRgba;
@@ -153,7 +153,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         buffer = new LinkedList<int[]>();
         mRgba = new Mat(height, width, CvType.CV_8UC4);
         prevFrameBGR = new Mat();
-        opticalFlow = FarnebackOpticalFlow.create(1, 0.5, true, 10, 1, 5, 1.2, 0);
+        opticalFlow = FarnebackOpticalFlow.create(3, 0.5, true, 8, 1, 3, 1.1, 0);
     }
 
     public void onCameraViewStopped() {
@@ -211,21 +211,29 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 int totalMovementPCG = (int) (pixelsMoved / totalPixels);
 
                 int verticalDisplacement = upwardSum - downwardSum;
+                int verticalDisplacementAvg = 0;
                 int verticalVelocity = 0;
                 int verticalAcceleration = 0;
-                int data[] = new int[2];
-                boolean canDetect = false;
+                int data[] = new int[3];
 
                 if (buffer.size() >= AVERAGING_FRAMES) {
                     int[] headData = buffer.remove();
-                    int prevDisplacement = headData[0];
-                    verticalVelocity = verticalDisplacement - prevDisplacement;
+                    int verticalDisplacementSum = 0;
+                    for (int[] item: buffer) {
+                        verticalDisplacementSum += item[0];
+                    }
+                    verticalDisplacementAvg = (int) (verticalDisplacementSum / AVERAGING_FRAMES);
+                    int prevDisplacementAvg = headData[2];
+
+                    verticalVelocity = verticalDisplacementAvg - prevDisplacementAvg;
                     int prevVelocity = headData[1];
+
                     verticalAcceleration = verticalVelocity - prevVelocity;
                 }
 
                 data[0] = verticalDisplacement;
                 data[1] = verticalVelocity;
+                data[2] = verticalDisplacementAvg;
                 buffer.add(data);
 
                 if (!downwardAccelDetected && verticalAcceleration < -(MINIMUM_ACCELERATION * 0.5)) {
@@ -249,7 +257,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     downwardAccelDetected = false;
                 }
 
-                mCCRTextView.setText("N: " + detectedCompressions + ", ACC: " + verticalAcceleration);
+                Log.e("STATLINE", "" + verticalAcceleration);
+                mCCRTextView.setText("N: " + detectedCompressions);
             }
 
             prevFrameBGR = currentFrameBGR;
