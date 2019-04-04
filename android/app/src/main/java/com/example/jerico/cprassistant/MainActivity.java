@@ -15,6 +15,8 @@ import org.opencv.video.FarnebackOpticalFlow;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
@@ -29,14 +31,15 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.lang.Runnable;
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String  TAG              = "MainActivity";
 
-    private static final double SCALE = 0.02;
+    private static final double SCALE = 0.03;
     private static final double MIN_FLOW_THRESHOLD = 0.1;
-    private static final double AVERAGING_FRAMES = 15;
-    private static final int MINIMUM_ACCELERATION = 200;
+    private static final double AVERAGING_FRAMES = 10;
+    private static final int MINIMUM_ACCELERATION = 150;
     private static final int MIN_UPWARD_ACCEL_TIME_MS = 750;
 
     private Mat mRgba;
@@ -56,6 +59,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private Queue<int[]> buffer;
     private Timer detectionTimer;
     private int detectedCompressions;
+    private double lastDetectedCompressionTime;
+    private int ccr;
 
 
 
@@ -110,6 +115,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     mCCRTextView.setText("DETECTING");
                     isBreathing = false;
                     detectedCompressions = 0;
+                    lastDetectedCompressionTime = 0;
+                    ccr = 0;
                 } else {
                     mMoreButton.setVisibility(View.VISIBLE);
                     mStartButton.setText("Start");
@@ -148,6 +155,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     public void onCameraViewStarted(int width, int height) {
         detectedCompressions = 0;
+        ccr = 0;
+        lastDetectedCompressionTime = 0;
         downwardAccelDetected = false;
         upwardAccelDetected = false;
         buffer = new LinkedList<int[]>();
@@ -236,7 +245,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 data[2] = verticalDisplacementAvg;
                 buffer.add(data);
 
-                if (!downwardAccelDetected && verticalAcceleration < -(MINIMUM_ACCELERATION * 0.5)) {
+                if (!downwardAccelDetected && verticalAcceleration < -(MINIMUM_ACCELERATION * 0.3)) {
                     downwardAccelDetected = true;
                     TimerTask resetTask = new TimerTask() {
                         @Override
@@ -255,10 +264,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     detectedCompressions++;
                     upwardAccelDetected = false;
                     downwardAccelDetected = false;
+                    long currentTime = System.currentTimeMillis();
+                    if (detectedCompressions > 0) {
+                        double timeDiff = currentTime - lastDetectedCompressionTime;
+                        ccr = (int) (60 / (timeDiff / 1000 ));
+                        Log.e("LOL", "" + lastDetectedCompressionTime);
+                     }
+                    lastDetectedCompressionTime = currentTime;
                 }
-
-                Log.e("STATLINE", "" + verticalAcceleration);
-                mCCRTextView.setText("N: " + detectedCompressions);
+                Handler refresh = new Handler(Looper.getMainLooper());
+                refresh.post(new Runnable() {
+                    public void run() {
+                        mCCRTextView.setText("N: " + detectedCompressions + ", CCR: " + ccr);
+                    }
+                });
             }
 
             prevFrameBGR = currentFrameBGR;
