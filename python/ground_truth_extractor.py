@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 parser = ArgumentParser(description='Ground truth data extractor for CPR assistant test videos.')
 parser.add_argument('-i', '--input', dest='input', help='Relative path to the input video file.', type=str, required=True)
-parser.add_argument('-o', '--overwrite-csv', dest='RECALCULATE', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV if enabled).',  action='store_true')
+parser.add_argument('-o', '--overwrite-csv', dest='recalculate', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV if enabled).',  action='store_true')
 parser.add_argument('-v', '--video-output', dest='video_output', help='Show video output.', action='store_true')
 parser.add_argument('-d', '--debug-mode', dest='debug_mode', help='Debug mode for iterating frame-by-frame.',  action='store_true')
 parser.add_argument('-m', '--maximum', dest='maximum', help='Flag to calculate maximums.',  action='store_true')
@@ -22,7 +22,7 @@ INPUT_VIDEO = args.input
 VIDEO_CAPTURE = cv2.VideoCapture("./videos/GT/%s" % INPUT_VIDEO)
 FPS = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_FPS))
 TOTAL_FRAMES = VIDEO_CAPTURE.get(cv2.CAP_PROP_FRAME_COUNT)
-RECALCULATE = args.RECALCULATE
+RECALCULATE = args.recalculate
 VIDEO_OUTPUT = args.video_output
 DEBUG_MODE = args.debug_mode
 CALCULATE_MAXIMUMS = args.maximum
