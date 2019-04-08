@@ -18,7 +18,7 @@ args = parser.parse_args()
 
 
 INPUT_VIDEO = args.input
-VIDEO_CAPTURE = cv2.VideoCapture("./videos/%s" % INPUT_VIDEO)
+VIDEO_CAPTURE = cv2.VideoCapture("./videos/GT/%s" % INPUT_VIDEO)
 FPS = int(VIDEO_CAPTURE.get(cv2.CAP_PROP_FPS))
 TOTAL_FRAMES = VIDEO_CAPTURE.get(cv2.CAP_PROP_FRAME_COUNT)
 RECALCULATE = args.RECALCULATE

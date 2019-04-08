@@ -51,7 +51,7 @@ WEIGHTS_FILE = args.weights_file
 SAVE_WEIGHTS = args.save_weights
 
 # Files and miscellaneous constants.
-INPUT_VIDEO = "./videos/%s_BUV.mp4" % DATASET
+INPUT_VIDEO = "./videos/BUV/%s_BUV.mp4" % DATASET
 WEIGHTS_DIR = "./weights/%s.npy" % DATASET 
 VIDEO = cv2.VideoCapture(INPUT_VIDEO)
 FPS = int(VIDEO.get(cv2.CAP_PROP_FPS))
@@ -59,7 +59,7 @@ NUMBER_OF_FRAMES = int(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
 DURATION = float(NUMBER_OF_FRAMES / FPS)
 TEXT_START_POS_Y = 30
 CSV_DIR = 'csv_results/%s_BUV.mp4.csv' % DATASET
-GT_DIR = './videos/%s_GT.mp4' % DATASET
+GT_DIR = './videos/GT/%s_GT.mp4' % DATASET
 GT_VIDEO = cv2.VideoCapture(GT_DIR)
 GT_CSV_DIR = './csv_gt/%s_GT.mp4.csv' % DATASET
 AVERAGING_FRAMES = int(MOVING_AVG_PERIOD * FPS)
@@ -67,7 +67,7 @@ LOOKBACK_FRAMES = int(LOOKBACK_TIME * FPS)
 
 
 
-def evaluate_ccr(data):
+def evaluate_ccr(data, is_ground_truth=False):
     """ Evaluate CCR through every datapoint, and dump the CCR for that datapoint. """
 
     ccr_data = np.array([])
@@ -90,7 +90,10 @@ def evaluate_ccr(data):
         else:
             interrupted_frames += 1
             ccr_data = np.append(ccr_data, None)
-    print("%s:  AVG_CCR: %f, CCF: %f, Nc: %i" % (DATASET, np.mean([c for c in ccr_data if c]), interrupted_frames / 30, compressions))
+    if is_ground_truth:
+        print("(GT) %s:  AVG_CCR: %f, CCF: %f, Nc: %i" % (DATASET, np.mean([c for c in ccr_data if c]), interrupted_frames / 30, compressions))
+    else:
+        print("(SLTN) %s:  AVG_CCR: %f, CCF: %f, Nc: %i" % (DATASET, np.mean([c for c in ccr_data if c]), interrupted_frames / 30, compressions))
     return ccr_data
 
 
@@ -156,7 +159,7 @@ def plot_data(data, ground_truth=None):
     time_in_seconds = [(i / FPS) for i in frames]
     ccr = evaluate_ccr(data)
     ccr = np.append(ccr, None)
-    gt_ccr = evaluate_ccr(ground_truth)
+    gt_ccr = evaluate_ccr(ground_truth, is_ground_truth=True)
     chart[2].set_title('Compression Rate')
     chart[2].plot(time_in_seconds, gt_ccr, "co")
     chart[2].plot(time_in_seconds, ccr, "ro")
