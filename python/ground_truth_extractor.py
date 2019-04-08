@@ -28,7 +28,7 @@ DEBUG_MODE = args.debug_mode
 CALCULATE_MAXIMUMS = args.maximum
 CSV_GT_DIR = 'csv_gt/%s.csv'
 
-COMPRESSION_BOUNDS = (880, 900)
+COMPRESSION_BOUNDS = (725, 830)
 GRAPH_AGAINST_TIME = False
 print("FPS: %i" % FPS)
 
@@ -222,7 +222,7 @@ def main():
 		else:
 			raw_data = read_from_csv(existing_csv)
 			data = get_compressions(raw_data) if CALCULATE_MAXIMUMS else raw_data
-			if RECALCULATE:
+			if CALCULATE_MAXIMUMS:
 				write_to_csv(data)
 	except FileNotFoundError:
 		print("Existing ground truth CSV file not found for %s. Recalculating..." % INPUT_VIDEO)
