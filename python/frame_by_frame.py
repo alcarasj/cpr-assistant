@@ -3,7 +3,7 @@ import imutils
 import numpy as np
 
 
-cap = cv2.VideoCapture('./videos/GT/L3_GT.mp4')
+cap = cv2.VideoCapture('./videos/GT/LB1_GT.mp4')
 TOTAL_FRAMES = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 FPS = float(cap.get(cv2.CAP_PROP_FPS))
 START_FRAME = 0
