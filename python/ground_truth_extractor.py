@@ -14,6 +14,7 @@ parser.add_argument('-i', '--input', dest='input', help='Relative path to the in
 parser.add_argument('-o', '--overwrite-csv', dest='RECALCULATE', help='Boolean to overwrite any existing CSV (will ignore and dump a new CSV if enabled).',  action='store_true')
 parser.add_argument('-v', '--video-output', dest='video_output', help='Show video output.', action='store_true')
 parser.add_argument('-d', '--debug-mode', dest='debug_mode', help='Debug mode for iterating frame-by-frame.',  action='store_true')
+parser.add_argument('-m', '--maximum', dest='maximum', help='Flag to calculate maximums.',  action='store_true')
 args = parser.parse_args()
 
 
@@ -24,10 +25,10 @@ TOTAL_FRAMES = VIDEO_CAPTURE.get(cv2.CAP_PROP_FRAME_COUNT)
 RECALCULATE = args.RECALCULATE
 VIDEO_OUTPUT = args.video_output
 DEBUG_MODE = args.debug_mode
+CALCULATE_MAXIMUMS = args.maximum
 CSV_GT_DIR = 'csv_gt/%s.csv'
 
 COMPRESSION_BOUNDS = (880, 900)
-CALCULATE_MAXIMUMS = False or RECALCULATE 
 GRAPH_AGAINST_TIME = False
 print("FPS: %i" % FPS)
 
@@ -178,9 +179,10 @@ def get_raw_data():
 			frame = imutils.rotate_bound(frame, 90)
 			frame = cv2.medianBlur(frame, 5)
 
+
 			# Hough circle transform to detect circles.
 			grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-			circles = cv2.HoughCircles(grayscale, cv2.HOUGH_GRADIENT, 1, 20, param1=200, param2=30, minRadius=20, maxRadius=35)
+			circles = cv2.HoughCircles(grayscale, cv2.HOUGH_GRADIENT, 1, 20, param1=200, param2=40, minRadius=30, maxRadius=40)
 
 			if (circles is not None) and (len(circles) == 1):
 				circles = np.uint16(np.around(circles))
@@ -220,7 +222,8 @@ def main():
 		else:
 			raw_data = read_from_csv(existing_csv)
 			data = get_compressions(raw_data) if CALCULATE_MAXIMUMS else raw_data
-			write_to_csv(data)
+			if RECALCULATE:
+				write_to_csv(data)
 	except FileNotFoundError:
 		print("Existing ground truth CSV file not found for %s. Recalculating..." % INPUT_VIDEO)
 		raw_data = get_raw_data()
