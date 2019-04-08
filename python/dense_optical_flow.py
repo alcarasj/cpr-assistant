@@ -51,17 +51,17 @@ WEIGHTS_FILE = args.weights_file
 SAVE_WEIGHTS = args.save_weights
 
 # Files and miscellaneous constants.
-INPUT_VIDEO = "./videos/%sBUV.mp4" % DATASET
+INPUT_VIDEO = "./videos/%s_BUV.mp4" % DATASET
 WEIGHTS_DIR = "./weights/%s.npy" % DATASET 
 VIDEO = cv2.VideoCapture(INPUT_VIDEO)
 FPS = int(VIDEO.get(cv2.CAP_PROP_FPS))
 NUMBER_OF_FRAMES = int(VIDEO.get(cv2.CAP_PROP_FRAME_COUNT))
 DURATION = float(NUMBER_OF_FRAMES / FPS)
 TEXT_START_POS_Y = 30
-CSV_DIR = 'csv_results/%sBUV.mp4.csv' % DATASET
-GT_DIR = './videos/%sGT.mp4' % DATASET
+CSV_DIR = 'csv_results/%s_BUV.mp4.csv' % DATASET
+GT_DIR = './videos/%s_GT.mp4' % DATASET
 GT_VIDEO = cv2.VideoCapture(GT_DIR)
-GT_CSV_DIR = './csv_gt/%sGT.mp4.csv' % DATASET
+GT_CSV_DIR = './csv_gt/%s_GT.mp4.csv' % DATASET
 AVERAGING_FRAMES = int(MOVING_AVG_PERIOD * FPS)
 LOOKBACK_FRAMES = int(LOOKBACK_TIME * FPS)
 
@@ -413,7 +413,6 @@ def process_video(ground_truth, preloaded_weights=None):
 
                 weights_hsv[..., 2] = cv2.normalize(weights, None, 0, 255, cv2.NORM_MINMAX)
                 weights_bgr = cv2.cvtColor(weights_hsv, cv2.COLOR_HSV2BGR)
-
 
                 cv2.putText(flow_bgr, "Time: %f" % elapsed_time, (25, TEXT_START_POS_Y), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
                 cv2.putText(flow_bgr, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 10), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
