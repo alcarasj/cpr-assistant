@@ -24,6 +24,7 @@ import android.view.SurfaceView;
 import android.widget.Button;
 import android.widget.TextView;
 import android.view.View;
+import android.graphics.Color;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,11 +37,11 @@ import java.lang.Runnable;
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String  TAG              = "MainActivity";
 
-    private static final double SCALE = 0.025;
-    private static final double MIN_FLOW_THRESHOLD = 0.3;
-    private static final double AVERAGING_FRAMES = 10;
+    private static final double SCALE = 0.3;
+    private static final double MIN_FLOW_THRESHOLD = 0.2;
+    private static final double AVERAGING_FRAMES = 15;
     private static final int MINIMUM_ACCELERATION = 150;
-    private static final int MIN_UPWARD_ACCEL_TIME_MS = 750;
+    private static final int MAX_UPWARD_ACCEL_TIME_MS = 750;
 
     private Mat mRgba;
     private Mat prevFrameBGR;
@@ -256,7 +257,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                         }
                     };
                     detectionTimer = new Timer();
-                    detectionTimer.schedule(resetTask, MIN_UPWARD_ACCEL_TIME_MS);
+                    detectionTimer.schedule(resetTask, MAX_UPWARD_ACCEL_TIME_MS);
                 } else if (downwardAccelDetected && verticalAcceleration > MINIMUM_ACCELERATION) {
                     upwardAccelDetected = true;
                 }
@@ -276,10 +277,16 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 Handler refresh = new Handler(Looper.getMainLooper());
                 refresh.post(new Runnable() {
                     public void run() {
-                        mCCRTextView.setText("N: " + detectedCompressions + ", CCR: " + ccr + ", ACC: " + verticalAcceleration);
+                        if ((ccr < 100 && ccr > 90) || (ccr > 120 && ccr < 140)) {
+                            mCCRTextView.setTextColor(Color.rgb(255, 165, 0));
+                        } else if (ccr <= 90 || ccr >= 140) {
+                            mCCRTextView.setTextColor(Color.RED);
+                        } else {
+                            mCCRTextView.setTextColor(Color.GREEN);
+                        }
+                        mCCRTextView.setText("" + ccr + "cpm");
                     }
                 });
-
             }
 
             prevFrameBGR = currentFrameBGR;
