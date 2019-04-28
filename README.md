@@ -9,6 +9,13 @@ Requires Python >=3.5, `pip3` and `virtualenv` to be installed on your machine.
 2. Create a `virtualenv` named `"venv"` with `virtualenv venv`.
 3. Activate the `virtualenv` with `. venv/bin/activate`.
 4. Install dependencies with `pip3 install -r requirements.txt`.
+### Datasets (Test Cases)
+| Code | Test Case                                                               |
+|------|-------------------------------------------------------------------------|
+| L    | Subject has long, loose hair.                                           |
+| S    | Subject has short hair.                                                 |
+| B    | Background disturbances wholly intended to disrupt performance.         |
+| C    | Crop at neck-level (the subject’s neck-level and below is cropped out). |
 ### Graphs
 Provided that the CSV files are in the correct directories, interactive graphs may be viewed using the following command:
 `python3 solution.py -d=DATASET` where `DATASET` can be one of `L1, L2, L3, S1, S2, S3, S4, LB1, LB2, LB3, SB1, SC1, SCB1`.
