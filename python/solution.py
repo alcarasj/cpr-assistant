@@ -416,12 +416,11 @@ def process_video(ground_truth, preloaded_weights=None):
 
                 weights_hsv[..., 2] = cv2.normalize(weights, None, 0, 255, cv2.NORM_MINMAX)
                 weights_bgr = cv2.cvtColor(weights_hsv, cv2.COLOR_HSV2BGR)
-                """
+
                 cv2.putText(flow_bgr, "Time: %f" % elapsed_time, (25, TEXT_START_POS_Y), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
                 cv2.putText(flow_bgr, "CCR: %fbpm" % ccr, (25, TEXT_START_POS_Y + 10), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
                 cv2.putText(flow_bgr, "S: %s" % (state), (25, TEXT_START_POS_Y + 20), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
                 cv2.putText(flow_bgr, "Nc: %i" % compressions, (25, TEXT_START_POS_Y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1.5 * SCALE, (255,255,255), thickness=1)
-                """
                 cv2.namedWindow('Solution', cv2.WINDOW_NORMAL)
                 cv2.namedWindow('Flow (All)', cv2.WINDOW_NORMAL)
                 cv2.namedWindow('Flow (Upward)', cv2.WINDOW_NORMAL)
@@ -440,8 +439,7 @@ def process_video(ground_truth, preloaded_weights=None):
                 gt_frame = cv2.resize(gt_frame, (0, 0), fx=SCALE * 0.5, fy=SCALE * 0.5) 
                 cv2.namedWindow('Ground Truth', cv2.WINDOW_NORMAL)
                 cv2.imshow('Ground Truth', gt_frame)
-                if cv2.waitKey(0) & 0xFF == ord('n'):
-                    pass
+                cv2.waitKey(1)
 
         prev_frame_bgr = current_frame_bgr
         state = None
